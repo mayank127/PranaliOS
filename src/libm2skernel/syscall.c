@@ -828,6 +828,30 @@ int handle_guest_syscalls() {
 		retval=get_pid();
 		break;
 	}
+    case syscall_code_set_instruction_slice:
+    {
+        isa_ctx->instr_slice = isa_regs->ebx;
+        break;
+    }
+    case syscall_code_read_virtual:
+    {
+        int bytes = isa_regs->ebx;
+        int addr = isa_regs->ecx;
+        int block_number = isa_regs->edx;
+        int offset = isa_regs->esi;
+
+        
+        break;
+    }
+    case syscall_code_write_virtual:
+    {
+        int bytes = isa_regs->ebx;
+        int addr = isa_regs->ecx;
+        int block_number = isa_regs->edx;
+        int offset = isa_regs->esi;
+        break;
+    }
+
 
         default:
             if (syscode >= syscall_code_count) {

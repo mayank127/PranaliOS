@@ -11,3 +11,15 @@
 *.lai
 *.la
 *.a
+
+# Extra after configure
+Makefile
+.deps
+Sim_disk
+config.log
+config.status
+m2s
+m2s-fast
+m2s-objdump
+guestos
+configfile
