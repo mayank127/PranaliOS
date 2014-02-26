@@ -844,7 +844,7 @@ int handle_guest_syscalls() {
         	fatal("syscall write_virtual : block number out of range");
         }
 
-        if (disk_block_data[block_number] == isa_ctx->pid){
+        if (disk_block_data[block_number] == isa_ctx->uid){
         	if(offset + bytes < 4 * 1024){
         		fseek(disk_file_pointer, block_number*4*1024 + offset, SEEK_SET);
         		void* buf;
@@ -876,7 +876,7 @@ int handle_guest_syscalls() {
 
         if (disk_block_data[block_number] == -1){
         	if(offset + bytes < 4 * 1024){
-            	disk_block_data[block_number] = isa_ctx->pid;
+            	disk_block_data[block_number] = isa_ctx->uid;
             	fseek(disk_file_pointer, block_number*4*1024 + offset, SEEK_SET);
             	void* buf;
             	buf = calloc(1, bytes);

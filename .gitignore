@@ -12,6 +12,7 @@
 *.la
 *.a
 a.out
+
 # Extra after configure
 Makefile
 .deps
@@ -26,3 +27,4 @@ configfile
 .cproject
 .project
 autom4te.cache/*
+copy.sh
