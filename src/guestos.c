@@ -61,6 +61,8 @@ static uint64_t sim_inst = 0;
 static int sigint_received = 0;
 extern int instr_slice;
 
+
+
 //int max_path_length = 100;
 void shell();
 
@@ -173,8 +175,14 @@ void set_defaults(void) {
 	tracks=atoi(param_value);
 	get_param("NUM_SECTORS",param_value);
 	sectors=atoi(param_value);
+	total_blocks_virtual_mem = (heads * tracks * sectors) / 8;
+	disk_block_data = (int *)malloc(total_blocks_virtual_mem * sizeof(int));
+	int i = 0;
+	for(i=0;i<total_blocks_virtual_mem;i++)
+		disk_block_data[i] = -1;
 	sprintf(command,"(dd if=/dev/zero of=Sim_disk bs=%dx%dx%db count=1) 2> /dev/zero",heads,tracks,sectors);
 	system(command);
+	disk_file_pointer = fopen("Sim_disk", "wb+");
 }
 
 void install_signals(void){

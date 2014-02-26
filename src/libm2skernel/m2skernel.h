@@ -48,6 +48,11 @@ struct fd_t;
 
 int instr_slice;
 
+/* Disk Block Table*/
+int* disk_block_data;
+int total_blocks_virtual_mem;
+FILE* disk_file_pointer;
+
 /* Maximum length for paths */
 #define MAX_PATH_SIZE  200
 
@@ -102,6 +107,8 @@ struct mem_t {
 
 extern unsigned long mem_mapped_space;
 extern unsigned long mem_max_mapped_space;
+
+
 
 struct mem_t *mem_create(void);
 void mem_free(struct mem_t *mem);

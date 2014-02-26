@@ -836,19 +836,62 @@ int handle_guest_syscalls() {
     case syscall_code_read_virtual:
     {
         int bytes = isa_regs->ebx;
-        int addr = isa_regs->ecx;
+        uint32_t addr = isa_regs->ecx;
         int block_number = isa_regs->edx;
         int offset = isa_regs->esi;
-
         
+        if(block_number >= total_blocks_virtual_mem){
+        	fatal("syscall write_virtual : block number out of range");
+        }
+
+        if (disk_block_data[block_number] == isa_ctx->pid){
+        	if(offset + bytes < 4 * 1024){
+        		fseek(disk_file_pointer, block_number*4*1024 + offset, SEEK_SET);
+        		void* buf;
+        		buf = malloc(bytes);
+        		fread(buf, bytes, 1, disk_file_pointer);
+            	mem_write(isa_mem, addr, bytes, buf);
+            	syscall_debug_string("  buf", buf, bytes, 1);
+            	free(buf);
+        	}
+        	else
+        		fatal("syscall read_virtual : offset out of bound");
+
+        }
+        else
+        	fatal("syscall read_virtual : block not for this process");
+
         break;
     }
     case syscall_code_write_virtual:
     {
         int bytes = isa_regs->ebx;
-        int addr = isa_regs->ecx;
+        uint32_t addr = isa_regs->ecx;
         int block_number = isa_regs->edx;
         int offset = isa_regs->esi;
+
+        if(block_number >= total_blocks_virtual_mem){
+        	fatal("syscall write_virtual : block number out of range");
+        }
+
+        if (disk_block_data[block_number] == -1){
+        	if(offset + bytes < 4 * 1024){
+            	disk_block_data[block_number] = isa_ctx->pid;
+            	fseek(disk_file_pointer, block_number*4*1024 + offset, SEEK_SET);
+            	void* buf;
+            	buf = calloc(1, bytes);
+            	mem_read(isa_mem, addr, bytes, buf);
+            	syscall_debug_string("  buf", buf, bytes, 1);
+            	fwrite(buf, bytes, 1, disk_file_pointer);
+            	free(buf);
+			}
+			else
+				fatal("syscall read_virtual : offset out of bound");
+
+		}
+		else{
+			fatal("syscall write_virtual : block not for this process");
+		}
         break;
     }
 
