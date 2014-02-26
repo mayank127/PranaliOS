@@ -25,3 +25,4 @@ guestos
 configfile
 .cproject
 .project
+autom4te.cache/*
