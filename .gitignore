@@ -23,3 +23,5 @@ m2s-fast
 m2s-objdump
 guestos
 configfile
+.cproject
+.project
