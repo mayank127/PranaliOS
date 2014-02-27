@@ -841,7 +841,7 @@ int handle_guest_syscalls() {
         int offset = isa_regs->esi;
         
         if(block_number >= total_blocks_virtual_mem){
-        	fatal("syscall write_virtual : block number out of range");
+        	fatal("syscall read_virtual : block number out of range");
         }
 
         if (disk_block_data[block_number] == isa_ctx->uid){
@@ -874,7 +874,7 @@ int handle_guest_syscalls() {
         	fatal("syscall write_virtual : block number out of range");
         }
 
-        if (disk_block_data[block_number] == -1){
+        if (disk_block_data[block_number] == -1 || disk_block_data[block_number] == isa_ctx->uid){
         	if(offset + bytes < 4 * 1024){
             	disk_block_data[block_number] = isa_ctx->uid;
             	fseek(disk_file_pointer, block_number*4*1024 + offset, SEEK_SET);
@@ -886,7 +886,7 @@ int handle_guest_syscalls() {
             	free(buf);
 			}
 			else
-				fatal("syscall read_virtual : offset out of bound");
+				fatal("syscall write_virtual : offset out of bound");
 
 		}
 		else{

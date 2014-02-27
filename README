@@ -1,2 +1,13 @@
 OS workbench for instructional purpose
 
+110050012 - Mayank Meghwanshi
+110050025 - Aditya Raj
+
+In first submission done upto 5a.
+
+In this submission adding functionality of 5b i.e. syscalls for read and write from virtual sim disk.
+
+syscall 402 for read_virtual
+syscall 403 for write_virtual
+
+testcodes are in directory testcode/
