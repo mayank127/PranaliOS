@@ -657,7 +657,21 @@ uint64_t ke_timer(void);
 void ke_process_events(void);
 void ke_process_events_schedule(void);
 
+enum kind_of_interrupt {
+	IO
+};
 
+struct interrupt_tuple {
+	long long inst_no;
+	enum kind_of_interrupt type;
+	int pid;
+	struct interrupt_tuple* nextTuple;
+};
+struct interrupt_tuple *interrupt_list_head, *interrupt_list_min;
+void add_interrupt(struct interrupt_tuple*);
+void remove_interrupt(struct interrupt_tuple*);
 
+static long long instruction_number;
+int prev_track, blocks_in_track;
 #endif
 

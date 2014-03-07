@@ -163,24 +163,28 @@ int get_param(const char *param, char *value){
 }
 
 void set_defaults(void) {
-	char param_value[LINE_MAX+1];
+	char param_value[LINE_MAX + 1];
 	get_param("INSTR_SLICE", param_value);
 	instr_slice = atoi(param_value);
 
 	int heads, tracks, sectors;
 	char command[1000];
-	get_param("NUM_HEADS",param_value);
-	heads=atoi(param_value);
-	get_param("NUM_TRACKS",param_value);
-	tracks=atoi(param_value);
-	get_param("NUM_SECTORS",param_value);
-	sectors=atoi(param_value);
+	get_param("NUM_HEADS", param_value);
+	heads = atoi(param_value);
+	get_param("NUM_TRACKS", param_value);
+	tracks = atoi(param_value);
+	get_param("NUM_SECTORS", param_value);
+	sectors = atoi(param_value);
 	total_blocks_virtual_mem = (heads * tracks * sectors) / 8;
-	disk_block_data = (int *)malloc(total_blocks_virtual_mem * sizeof(int));
+	blocks_in_track = total_blocks_virtual_mem / tracks;
+	prev_track = 0;
+	disk_block_data = (int *) malloc(total_blocks_virtual_mem * sizeof(int));
 	int i = 0;
-	for(i=0;i<total_blocks_virtual_mem;i++)
+	for (i = 0; i < total_blocks_virtual_mem; i++)
 		disk_block_data[i] = -1;
-	sprintf(command,"(dd if=/dev/zero of=Sim_disk bs=%dx%dx%db count=1) 2> /dev/zero",heads,tracks,sectors);
+	sprintf(command,
+			"(dd if=/dev/zero of=Sim_disk bs=%dx%dx%db count=1) 2> /dev/zero",
+			heads, tracks, sectors);
 	system(command);
 	disk_file_pointer = fopen("Sim_disk", "wb+");
 }

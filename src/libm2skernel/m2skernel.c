@@ -96,13 +96,31 @@ void ke_run(void)
 		//printf ("out - %p\n", ctx);
 
 		for ( i = 0 ; i < ctx->instr_slice ; ++i) {
+			instruction_number++;
+			if(interrupt_list_min != NULL){
+				if(instruction_number >= interrupt_list_min->inst_no){
+					instruction_number = interrupt_list_min->inst_no;
+					struct ctx_t* cur = ctx_get(interrupt_list_min->pid);
+					ctx_clear_status(cur, isa_ctx->status);
+					ctx_set_status(cur, ctx_running);
+					remove_interrupt(interrupt_list_min);
+					break;
+				}
+			}
 			ctx_execute_inst(ctx);
 
 			if (ctx!=ke->running_list_head)
 				break;
 		}
 	}
-	
+	if (interrupt_list_min != NULL) {
+		printf("here");
+		instruction_number = interrupt_list_min->inst_no;
+		struct ctx_t* cur = ctx_get(interrupt_list_min->pid);
+		ctx_clear_status(cur, isa_ctx->status);
+		ctx_set_status(cur, ctx_running);
+		remove_interrupt(interrupt_list_min);
+	}
 	/* Free finished contexts */
 	while (ke->finished_list_head)
 		ctx_free(ke->finished_list_head);
@@ -744,3 +762,51 @@ void ke_process_events()
 	pthread_mutex_unlock(&ke->process_events_mutex);
 }
 
+
+void add_interrupt(struct interrupt_tuple* it) {
+	if (interrupt_list_head == NULL) {
+		it->nextTuple = NULL;
+		interrupt_list_head = it;
+		interrupt_list_min = it;
+	} else {
+		it->nextTuple = interrupt_list_head;
+		interrupt_list_head = it;
+		if (interrupt_list_min->inst_no > it->inst_no) {
+			interrupt_list_min = it;
+		}
+	}
+}
+void remove_interrupt(struct interrupt_tuple* it) {
+	if (interrupt_list_head == NULL) {
+		return;
+	} else {
+		struct interrupt_tuple *prev, *cur;
+		prev = NULL;
+		cur = interrupt_list_head;
+		while (cur != NULL) {
+			if (cur == it) {
+				if (prev == NULL) {
+					interrupt_list_head = it->nextTuple;
+				} else {
+					prev->nextTuple = it->nextTuple;
+				}
+			} else {
+				prev = cur;
+				cur = prev->nextTuple;
+			}
+		}
+
+		if (interrupt_list_head == NULL)
+			return;
+
+		prev = NULL;
+		cur = interrupt_list_head;
+		long long min = interrupt_list_head->inst_no;
+		while (cur != NULL) {
+			if (min > cur->inst_no) {
+				min = cur->inst_no;
+				interrupt_list_min = cur;
+			}
+		}
+	}
+}
