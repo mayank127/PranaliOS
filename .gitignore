@@ -28,3 +28,4 @@ configfile
 .project
 autom4te.cache/*
 copy.sh
+sftp-config.json
