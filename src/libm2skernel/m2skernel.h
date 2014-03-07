@@ -671,7 +671,7 @@ struct interrupt_tuple *interrupt_list_head, *interrupt_list_min;
 void add_interrupt(struct interrupt_tuple*);
 void remove_interrupt(struct interrupt_tuple*);
 
-static long long instruction_number;
+long long instruction_number;
 int prev_track, blocks_in_track;
 #endif
 

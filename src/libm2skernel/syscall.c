@@ -855,13 +855,14 @@ int handle_guest_syscalls() {
             	free(buf);
             	struct interrupt_tuple* intrpt;
             	intrpt = malloc(sizeof(struct interrupt_tuple));
-            	int delta = block_number * 10 / blocks_in_track;
+            	int delta = block_number * 1000000 / blocks_in_track + 1000000;
             	intrpt->type = IO;
             	intrpt->pid = isa_ctx->pid;
             	intrpt->inst_no = instruction_number + delta;
             	add_interrupt(intrpt);
             	ctx_clear_status(isa_ctx, isa_ctx->status);
             	ctx_set_status(isa_ctx, ctx_suspended);
+            	printf("Read Intrpt %lld, %lld\n", instruction_number, intrpt->inst_no);
 
         	}
         	else
@@ -898,13 +899,14 @@ int handle_guest_syscalls() {
 				free(buf);
 				struct interrupt_tuple* intrpt;
 				intrpt = malloc(sizeof(struct interrupt_tuple));
-				int delta = block_number * 10 / blocks_in_track;
+				int delta = block_number * 1000000 / blocks_in_track + 1000000;
 				intrpt->type = IO;
 				intrpt->pid = isa_ctx->pid;
 				intrpt->inst_no = instruction_number + delta;
 				add_interrupt(intrpt);
 				ctx_clear_status(isa_ctx, isa_ctx->status);
 				ctx_set_status(isa_ctx, ctx_suspended);
+				printf("Write Intrpt %lld, %lld\n", instruction_number, intrpt->inst_no);
 			}
 			else
 				fatal("syscall write_virtual : offset out of bound");

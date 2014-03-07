@@ -9,3 +9,7 @@ Shivam H Prasad 110050041
 Alok Yadav 110050043 
 
 Work done : On I/O instructions, the current process is set in the suspended(blocked) mode. Created a interrupt queue and the accesed the queue for executing the next timed interrupt. The interrupts are timed after a calculated number of instructions. On execution of the interrupt, the blocked process is unblocked. 
+
+
+compile world.cpp to world, while.cpp to while
+use testcode/input as input for guestos.

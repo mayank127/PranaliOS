@@ -93,17 +93,19 @@ void ke_run(void)
 	/* Run an instruction from every running process */
 	for (ctx = ke->running_list_head; ctx; ctx = ctx->running_next) {
 		int i;
-		//printf ("out - %p\n", ctx);
+//		printf ("out - %p\n", ctx);
 
 		for ( i = 0 ; i < ctx->instr_slice ; ++i) {
 			instruction_number++;
 			if(interrupt_list_min != NULL){
 				if(instruction_number >= interrupt_list_min->inst_no){
 					instruction_number = interrupt_list_min->inst_no;
+					printf("intrpr rcvd 1 %lld\n", instruction_number);
 					struct ctx_t* cur = ctx_get(interrupt_list_min->pid);
-					ctx_clear_status(cur, isa_ctx->status);
+					ctx_clear_status(cur, cur->status);
 					ctx_set_status(cur, ctx_running);
 					remove_interrupt(interrupt_list_min);
+					flag = 1;
 					break;
 				}
 			}
@@ -112,12 +114,16 @@ void ke_run(void)
 			if (ctx!=ke->running_list_head)
 				break;
 		}
+		if(flag == 1){
+			flag = 0;
+			break;
+		}
 	}
-	if (interrupt_list_min != NULL) {
-		printf("here");
+	if (ke->running_list_head == NULL && interrupt_list_min != NULL) {
 		instruction_number = interrupt_list_min->inst_no;
+		printf("intrpr rcvd 2 %lld\n", instruction_number);
 		struct ctx_t* cur = ctx_get(interrupt_list_min->pid);
-		ctx_clear_status(cur, isa_ctx->status);
+		ctx_clear_status(cur, cur->status);
 		ctx_set_status(cur, ctx_running);
 		remove_interrupt(interrupt_list_min);
 	}
@@ -790,6 +796,8 @@ void remove_interrupt(struct interrupt_tuple* it) {
 				} else {
 					prev->nextTuple = it->nextTuple;
 				}
+				interrupt_list_min = NULL;
+				break;
 			} else {
 				prev = cur;
 				cur = prev->nextTuple;
@@ -799,7 +807,6 @@ void remove_interrupt(struct interrupt_tuple* it) {
 		if (interrupt_list_head == NULL)
 			return;
 
-		prev = NULL;
 		cur = interrupt_list_head;
 		long long min = interrupt_list_head->inst_no;
 		while (cur != NULL) {
@@ -807,6 +814,7 @@ void remove_interrupt(struct interrupt_tuple* it) {
 				min = cur->inst_no;
 				interrupt_list_min = cur;
 			}
+			cur = cur->nextTuple;
 		}
 	}
 }
