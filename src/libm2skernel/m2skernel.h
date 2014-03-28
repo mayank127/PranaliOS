@@ -704,5 +704,11 @@ int get_free_FCB_index();
 int get_free_block();
 void add_free_block(int block_num);
 void add_free_FCB(int fcb);
+
+
+void * read_block(int file_block_number);
+void write_block(int file_block_number, char * buff);
+int file_seek(FCB * file_fcb, int offset, int start_point) ;
+
 #endif
 

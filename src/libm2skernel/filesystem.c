@@ -2,6 +2,40 @@
 
 SuperBlock super_block;
 
+
+void * read_block(int file_block_number){
+
+	void * read_buffer ;
+	size_t number_of_byte_read;
+	read_buffer = malloc(super_block.block_size) ;
+	if(file_block_number >= total_blocks_virtual_mem){
+		fatal("read_block : block number out of range");
+	}
+
+	fseek(disk_file_pointer, block_number , SEEK_SET) ;
+	number_of_byte_read = fread(buf,super_block.block_size, 1, disk_file_pointer);
+
+	if (number_of_byte_read != super_block.block_size) {
+		fatal("read error");
+	}
+
+	return read_buffer ;
+
+}
+
+
+void write_block(int file_block_number, char * buffer){
+
+	if(file_block_number >= total_blocks_virtual_mem){
+		fatal("read_block : block number out of range");
+	}
+
+	fseek(disk_file_pointer, file_block_number,
+		SEEK_SET);
+	fwrite(buffer, super_block.block_size, 1, disk_file_pointer);
+
+}
+
 void init_super_block(){
 	super_block.number_of_blocks = total_blocks_virtual_mem;
 	super_block.block_size = 2048;
@@ -133,8 +167,6 @@ int get_free_block(){
 		return num;
 	}
 }
-
-
 
 void add_free_block(int block_num){
 	int_list * temp = (int_list*) (malloc(sizeof(int_list)));
