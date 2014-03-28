@@ -79,7 +79,8 @@ am_libm2skernel_a_OBJECTS = isa.$(OBJEXT) context.$(OBJEXT) \
 	m2skernel.$(OBJEXT) machine.$(OBJEXT) machine-ctrl.$(OBJEXT) \
 	machine-fp.$(OBJEXT) machine-rot.$(OBJEXT) \
 	machine-std.$(OBJEXT) machine-str.$(OBJEXT) memory.$(OBJEXT) \
-	regs.$(OBJEXT) signal.$(OBJEXT) syscall.$(OBJEXT)
+	regs.$(OBJEXT) signal.$(OBJEXT) syscall.$(OBJEXT) \
+	filesystem.$(OBJEXT)
 libm2skernel_a_OBJECTS = $(am_libm2skernel_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -203,6 +204,7 @@ libm2skernel_a_SOURCES = m2skernel.h \
 	regs.c \
 	signal.c \
 	syscall.c \
+	filesystem.c \
 	syscall.dat
 
 AM_CFLAGS = -Wall -fno-strict-aliasing -m32
@@ -290,6 +292,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/context.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/elf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/filesystem.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/isa.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/loader.Po@am__quote@
