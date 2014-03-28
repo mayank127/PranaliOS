@@ -32,8 +32,3 @@ void write_block(int file_block_number, char * buffer){
 	fwrite(buffer, super_block.block_size, 1, disk_file_pointer);
 
 }
-
-int file_seek(FCB * file_fcb, int offset, int start_point){
-
-	if(offset )
-}
