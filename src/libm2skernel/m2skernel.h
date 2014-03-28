@@ -52,6 +52,7 @@ int instr_slice;
 int* disk_block_data;
 int total_blocks_virtual_mem;
 FILE* disk_file_pointer;
+int disk_area_block;
 
 /* Maximum length for paths */
 #define MAX_PATH_SIZE  200
@@ -676,10 +677,76 @@ int prev_track, blocks_in_track;
 
 
 
-//Author - Tanmay
 char * read_file(FCB * file_fcb, int size);
 void write_file(FCB * file_fcb, int size, char * data);
 void seek_file(FCB * file_fcb, int size);
 uint32 get_block_address(FCB * file_fcb, int block_number);
+
+
+struct FCB {
+	int index;
+	int file_size;
+	char name[100];
+	time_t creation_time;
+	time_t last_modified_time;
+	time_t last_seen_time;
+	int uid;
+	int type; // 0 for directory, 1 for file
+	unit32 address_space[15];
+
+	//seek pointer
+	int seek_block;	// init with 0
+	uint32 seek_block_addr;	// init with address_space[0]
+	int seek_offset; // init with 0
+};
+struct FCB_list{
+    struct FCB * cur;
+    struct FCB_list * next;
+};
+typedef struct super_block {
+	int number_of_blocks;
+	int block_size;
+	int blocks_in_track;
+
+	int size;
+	struct FCB FCB_root;
+
+	int free_block_count;
+	int highest_FCB_index_used;
+
+	struct int_list * free_block_pointer;
+	struct int_list * free_FCB_list_head;
+} SuperBlock;
+
+typedef struct int_list
+{
+	int num;
+	struct int_list * next;
+} int_list;
+
+void read_super_block();
+void init_super_block();
+void write_super_block();
+int list_size(int_list*);
+int get_free_FCB_index();
+int get_free_block();
+void add_free_block(int block_num);
+void add_free_FCB(int fcb);
+
+
+void * read_block(int file_block_number);
+void write_block(int file_block_number, char * buff);
+int file_seek(FCB * file_fcb, int offset, int start_point) ;
+
+
+void update_time_stamps(struct FCB * file, int mask);
+struct FCB * search_in_directory(struct FCB * directory, char * name);
+struct FCB * search_file_or_directory(char * path);
+struct FCB * get_parent_directory(char * path);
+struct FCB * create_root_FCB();
+void create_file(char * path, char * name, int type);
+void delete_file(char * path);
+void remove_directory(char * path);
+
 #endif
 
