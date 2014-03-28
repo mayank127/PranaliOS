@@ -673,5 +673,24 @@ void remove_interrupt(struct interrupt_tuple*);
 
 long long instruction_number;
 int prev_track, blocks_in_track;
+
+
+struct FCB {
+	int index;
+	int file_size;
+	char name[100];
+	time_t creation_time;
+	time_t last_modified_time;
+	time_t last_seen_time;
+	int uid;
+	int type; // 0 for directory, 1 for file
+	unit32 address_space[15];
+
+	//seek pointer
+	int seek_block;	// init with 0
+	uint32 seek_block_addr;	// init with address_space[0]
+	int seek_offset; // init with 0
+};
+
 #endif
 
