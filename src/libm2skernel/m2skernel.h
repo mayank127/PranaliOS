@@ -52,6 +52,7 @@ int instr_slice;
 int* disk_block_data;
 int total_blocks_virtual_mem;
 FILE* disk_file_pointer;
+int disk_area_block;
 
 /* Maximum length for paths */
 #define MAX_PATH_SIZE  200
@@ -673,5 +674,31 @@ void remove_interrupt(struct interrupt_tuple*);
 
 long long instruction_number;
 int prev_track, blocks_in_track;
+
+
+typedef struct super_block {
+	int number_of_blocks;
+	int block_size;
+	int blocks_in_track;
+	int size;
+	struct FCB FCB_root;
+
+	int free_block_count;
+	int highest_FCB_index_used;
+
+	struct int_list * free_block_pointer;
+	struct int_list * free_FCB_list_head;
+} SuperBlock;
+
+typedef struct int_list
+{
+	int num;
+	struct int_list * next;
+} int_list;
+
+void read_super_block();
+void init_super_block();
+void write_super_block();
+int list_size(int_list*);
 #endif
 
