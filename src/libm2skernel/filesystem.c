@@ -74,7 +74,7 @@ void write_super_block(){
 	fwrite(&super_block, sizeof(super_block), 1, disk_file_pointer);
 
 
-	//free_blpck_list write
+	//free_block_list write
 	int size = list_size(super_block.free_block_pointer);
 	fwrite(&size, sizeof(int), 1, disk_file_pointer);
 	int_list* cur = super_block.free_block_pointer;
@@ -93,7 +93,7 @@ void write_super_block(){
 		fwrite(&(cur->num), sizeof(int), 1, disk_file_pointer);
 		cur = cur->next;
 	}
-	
+
 	//disk_block_data write
 	fwrite(disk_block_data, sizeof(total_blocks_virtual_mem * sizeof(int)), 1, disk_file_pointer);
 }
@@ -106,4 +106,45 @@ int list_size(int_list* l){
 		size++;
 	}
 	return size;
+}
+
+int get_free_FCB_index(){
+	if(super_block.free_FCB_list_head != NULL){
+		int num = super_block.free_FCB_list_head;
+		super_block.free_FCB_list_head = super_block.free_FCB_list_head->next;
+		return num;
+	}
+	else{
+		int num = super_block.highest_FCB_index_used;
+		super_block.highest_FCB_index_used+=1;
+		return num;
+	}
+}
+
+int get_free_block(){
+	if(super_block.free_block_list != NULL){
+		int num = super_block.free_block_list;
+		super_block.free_block_list = super_block.free_block_list->next;
+		return num;
+	}
+	else{
+		int num = super_block.free_block_count;
+		super_block.free_block_count+=1;
+		return num;
+	}
+}
+
+
+
+void add_free_block(int block_num){
+	int_list * temp = (int_list*) (malloc(sizeof(int_list)));
+	temp->num = block_num;
+	temp->next = super_block.free_block_list;
+	super_block.free_block_list = temp;
+}
+void add_free_FCB(int fcb){
+	int_list * temp = (int_list*) (malloc(sizeof(int_list)));
+	temp->num = fcb;
+	temp->next = super_block.free_FCB_list_head;
+	super_block.free_FCB_list_head = temp;
 }

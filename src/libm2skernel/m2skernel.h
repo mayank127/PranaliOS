@@ -700,5 +700,9 @@ void read_super_block();
 void init_super_block();
 void write_super_block();
 int list_size(int_list*);
+int get_free_FCB_index();
+int get_free_block();
+void add_free_block(int block_num);
+void add_free_FCB(int fcb);
 #endif
 
