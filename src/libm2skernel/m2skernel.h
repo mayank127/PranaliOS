@@ -673,5 +673,13 @@ void remove_interrupt(struct interrupt_tuple*);
 
 long long instruction_number;
 int prev_track, blocks_in_track;
+
+
+
+//Author - Tanmay
+char * read_file(FCB * file_fcb, int size);
+void write_file(FCB * file_fcb, int size, char * data);
+void seek_file(FCB * file_fcb, int size);
+uint32 get_block_address(FCB * file_fcb, int block_number);
 #endif
 
