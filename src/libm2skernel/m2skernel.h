@@ -673,5 +673,14 @@ void remove_interrupt(struct interrupt_tuple*);
 
 long long instruction_number;
 int prev_track, blocks_in_track;
+
+
+
+void * read_block(int file_block_number);
+
+void write_block(int file_block_number, char * buff);
+
+int file_seek(FCB * file_fcb, int offset, int start_point) ;
+
 #endif
 
