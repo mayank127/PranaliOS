@@ -677,32 +677,29 @@ int prev_track, blocks_in_track;
 
 
 
-char * read_file(FCB * file_fcb, int size);
-void write_file(FCB * file_fcb, int size, char * data);
-void seek_file(FCB * file_fcb, int size);
-uint32 get_block_address(FCB * file_fcb, int block_number);
-
-
-struct FCB {
+typedef struct FCB {
 	int index;
 	int file_size;
-	char name[100];
+	char name[50];
+	char path[500];
 	time_t creation_time;
 	time_t last_modified_time;
 	time_t last_seen_time;
 	int uid;
 	int type; // 0 for directory, 1 for file
-	unit32 address_space[15];
+	uint32_t block_address[15];
 
 	//seek pointer
 	int seek_block;	// init with 0
-	uint32 seek_block_addr;	// init with address_space[0]
+	uint32_t seek_block_addr;	// init with address_space[0]
 	int seek_offset; // init with 0
-};
-struct FCB_list{
+} FCB;
+
+typedef struct FCB_list{
     struct FCB * cur;
     struct FCB_list * next;
-};
+} FCB_list;
+
 typedef struct super_block {
 	int number_of_blocks;
 	int block_size;
@@ -723,6 +720,10 @@ typedef struct int_list
 	int num;
 	struct int_list * next;
 } int_list;
+char * read_file(FCB * file_fcb, int size);
+void write_file(FCB * file_fcb, int size, char * data);
+void seek_file(FCB * file_fcb, int size);
+uint32_t get_block_address(FCB * file_fcb, int block_number);
 
 void read_super_block();
 void init_super_block();

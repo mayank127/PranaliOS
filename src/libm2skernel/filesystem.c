@@ -12,9 +12,8 @@ void * read_block(int file_block_number){
 	if(file_block_number >= total_blocks_virtual_mem){
 		fatal("read_block : block number out of range");
 	}
-
-	fseek(disk_file_pointer, block_number , SEEK_SET) ;
-	number_of_byte_read = fread(buf,super_block.block_size, 1, disk_file_pointer);
+	fseek(disk_file_pointer, file_block_number , SEEK_SET) ;
+	number_of_byte_read = fread(read_buffer, super_block.block_size, 1, disk_file_pointer);
 
 	if (number_of_byte_read != super_block.block_size) {
 		fatal("read error");
@@ -43,7 +42,6 @@ void init_super_block(){
 	super_block.blocks_in_track = blocks_in_track;
 	super_block.FCB_root = * (create_root_FCB());
 
-	super_block.free_block_count = 0;
 	super_block.highest_FCB_index_used = 0;
 
 	super_block.free_block_pointer = NULL;
@@ -56,8 +54,9 @@ void init_super_block(){
 	size += total_blocks_virtual_mem * sizeof(int);
 
 	super_block.size = size/2048 + 1;
+	super_block.free_block_count = super_block.size;
 	write_super_block();
-	
+
 }
 
 void read_super_block(){
@@ -109,7 +108,7 @@ void write_super_block(){
 	fwrite(&super_block, sizeof(super_block), 1, disk_file_pointer);
 
 
-	//free_block_list write
+	//free_block_pointer write
 	int size = list_size(super_block.free_block_pointer);
 	fwrite(&size, sizeof(int), 1, disk_file_pointer);
 	int_list* cur = super_block.free_block_pointer;
@@ -145,7 +144,7 @@ int list_size(int_list* l){
 
 int get_free_FCB_index(){
 	if(super_block.free_FCB_list_head != NULL){
-		int num = super_block.free_FCB_list_head;
+		int num = super_block.free_FCB_list_head->num;
 		super_block.free_FCB_list_head = super_block.free_FCB_list_head->next;
 		return num;
 	}
@@ -157,9 +156,9 @@ int get_free_FCB_index(){
 }
 
 int get_free_block(){
-	if(super_block.free_block_list != NULL){
-		int num = super_block.free_block_list;
-		super_block.free_block_list = super_block.free_block_list->next;
+	if(super_block.free_block_pointer != NULL){
+		int num = super_block.free_block_pointer->num;
+		super_block.free_block_pointer = super_block.free_block_pointer->next;
 		return num;
 	}
 	else{
@@ -172,8 +171,8 @@ int get_free_block(){
 void add_free_block(int block_num){
 	int_list * temp = (int_list*) (malloc(sizeof(int_list)));
 	temp->num = block_num;
-	temp->next = super_block.free_block_list;
-	super_block.free_block_list = temp;
+	temp->next = super_block.free_block_pointer;
+	super_block.free_block_pointer = temp;
 }
 void add_free_FCB(int fcb){
 	int_list * temp = (int_list*) (malloc(sizeof(int_list)));
@@ -202,12 +201,12 @@ void update_time_stamps(struct FCB * file, int mask) {
 
 // search for file name in directory
 struct FCB * search_in_directory(struct FCB * directory, char * name) {
-	int number_of_entries = directory->size / sizeof(struct FCB);
+	int number_of_entries = directory->file_size / sizeof(struct FCB);
 	int i = 0;
 	for (i=0;i<number_of_entries;i++) {
 		struct FCB * temp = (struct FCB *) malloc (sizeof(struct FCB));
 		seek_file(directory,i*sizeof(struct FCB));
-		*temp = read_file(directory, sizeof(struct FCB))
+		temp = (FCB *) read_file(directory, sizeof(struct FCB));
 		if (strcmp(name,temp->name)==0) {
 			return temp;
 		}
@@ -218,7 +217,7 @@ struct FCB * search_in_directory(struct FCB * directory, char * name) {
 // search file
 struct FCB * search_file_or_directory(char * path) {
 	if (strcmp(path,"root")==0)
-		return get_root();
+		return &(super_block.FCB_root);
 	else {
 		char * name;
 		name = strtok(path,"/");
@@ -282,8 +281,10 @@ struct FCB * create_root_FCB() {
 	root->uid = 0;
 	root->type = 0;
 	root->seek_block = 0;
-	root->seek_block_addr = root->address_space[0];
+	root->seek_block_addr = root->block_address[0];
 	root->seek_offset = 0;
+	strcpy(root->path, "root");
+	return root;
 }
 
 // create a new file/directory FCB and add to its parent directory
@@ -294,15 +295,19 @@ void create_file(char * path, char * name, int type) {
 	*/
 	struct FCB * cur_directory = search_file_or_directory(path);
 	struct FCB * new_file = (struct FCB *) (malloc(sizeof(struct FCB)));
-	// new_file->index = get_free_FCB_index();
+	new_file->index = get_free_FCB_index();
 	new_file->file_size = 0;
 	strcmp(new_file->name,name);
 	update_time_stamps(new_file,1);
 	// new_file->uid = get_uid();
 	new_file->type = type;
 	new_file->seek_block = 0;
-	new_file->seek_block_addr = new_file->address_space[0];
+	new_file->seek_block_addr = new_file->block_address[0];
 	new_file->seek_offset = 0;
+	strcpy(new_file->path, path);
+	strcat(new_file->path, "/");
+	strcat(new_file->path, name);
+
 	seek_file(cur_directory, cur_directory->file_size);
 	write_file(cur_directory,sizeof(struct FCB),(char *)(new_file));
 	cur_directory->file_size += sizeof(struct FCB);
@@ -318,26 +323,25 @@ void delete_file(char * path) {
 	if (directory->type != 1){
 		// error given path points to a file
 	}
-	int number_of_entries = directory->size()/sizeof(struct FCB);
+	int number_of_entries = directory->file_size/sizeof(struct FCB);
 	int i;
 	struct FCB_list cur_list;
-	cur_list.cur = read(directory, 0, sizeof(struct FCB));
+	cur_list.cur = (FCB *) read_file(directory, sizeof(struct FCB));
 	FCB_list * prev = &cur_list;
 	for (i=1; i<number_of_entries; i++){
-		struct FCB_list * next = malloc(sizeof(struct * FCB_list));
-		next->cur = read(directory, i*sizeof(struct FCB), sizeof(struct FCB));
+		FCB_list * next = malloc(sizeof(struct FCB_list));
+		next->cur = (FCB *) read_file(directory, sizeof(struct FCB));
 		prev->next = next;
 		prev = next;
 	}
-	prev.next = NULL;
-	truncate_file(directory);
-	int j=0;
-	struct FCB_list * itr = cur_list;
+	prev->next = NULL;
+	//TODO truncate_file(directory);
+	struct FCB_list * itr = &cur_list;
 	while(itr->next != NULL){
 		if (strcmp(itr->cur->name, file->name) != 0){
-			seek_file(directory, directory->size);
+			seek_file(directory, directory->file_size);
 			write_file(directory,sizeof(struct FCB),(char *)(itr->cur));
-			directory->size += sizeof(struct FCB);
+			directory->file_size += sizeof(struct FCB);
 		}
 	}
 }
@@ -347,12 +351,13 @@ void remove_directory(char * path) {
 	struct FCB * cur_directory = search_file_or_directory(path);
 	if (cur_directory->type==0) {
 		// now first recursively delete all the contents
+		int number_of_entries = cur_directory->file_size/sizeof(struct FCB);
 		int i = 0;
 		for (i=0;i<number_of_entries;i++) {
 			struct FCB * temp = (struct FCB *) malloc (sizeof(struct FCB));
-			seek_file(directory, i*sizeof(struct FCB));
-			temp = (struct FCB *)read_file(directory, sizeof(struct FCB))
-			remove_directory(temp);
+			seek_file(cur_directory, i*sizeof(struct FCB));
+			temp = (struct FCB *)read_file(cur_directory, sizeof(struct FCB));
+			remove_directory(temp->path);
 		}
 	}
 	// now delete this FCB (can be a directory or file) [base case]
@@ -363,20 +368,21 @@ void remove_directory(char * path) {
 char * read_file(FCB * file_fcb, int size){
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
-	uint32 block_address = file_fcb->seek_block_addr;
-	
+	uint32_t block_address = file_fcb->seek_block_addr;
+
 	char * read_buff;
 	char * return_buff;
 	int j = 0;
 
 	return_buff = malloc(size);
 
-	if(seek_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
+	if(start_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
 		int num_blocks = (byte_offset + size)/super_block.block_size;
-		
-		if(num_blocks == 0){		
-			read_buff = read_block(block_address);	
-			for(int i = 0; i < size; i++){
+
+		if(num_blocks == 0){
+			read_buff = read_block(block_address);
+			int i = 0;
+			for(i = 0; i < size; i++){
 				return_buff[j] = read_buff[byte_offset + i];
 				j++;
 			}
@@ -385,17 +391,19 @@ char * read_file(FCB * file_fcb, int size){
 		}
 		else{
 			read_buff = read_block(block_address);
-			for(int i = byte_offset; i < super_block.block_size; i++){
+			int i = 0;
+			for(i = byte_offset; i < super_block.block_size; i++){
 				return_buff[j] = read_buff[i];
 				j++;
 			}
 			start_block++;
 
-			for(int i = 1; i <= num_blocks - 1; i++){
-				block_address = get_block_address(start_block);
+			for(i = 1; i <= num_blocks - 1; i++){
+				block_address = get_block_address(file_fcb, start_block);
 				start_block++;
 				read_buff = read_block(block_address);
-				for(int k = 0; k < super_block.block_size; k++){
+				int k = 0;
+				for(k = 0; k < super_block.block_size; k++){
 					return_buff[j] = read_buff[k];
 					j++;
 				}
@@ -403,7 +411,8 @@ char * read_file(FCB * file_fcb, int size){
 
 			block_address = get_block_address(file_fcb, start_block);
 			read_buff = read_block(block_address);
-			for(int k = 0; j < size; k++){
+			int k = 0;
+			for(k = 0; j < size; k++){
 				return_buff[j] = read_buff[k];
 				j++;
 			}
@@ -418,35 +427,35 @@ char * read_file(FCB * file_fcb, int size){
 	return return_buff;
 }
 
-uint32 get_block_address(FCB * file_fcb, int block_number){
+uint32_t get_block_address(FCB * file_fcb, int block_number){
 	if(block_number <= 11){
-		return block_address[block_number];
+		return file_fcb->block_address[block_number];
 	}
 	else if(block_number <= 11 + 1024){
-		uint32 * address_buff = read_block(block_address[12]);
-		return address_buff[block_number - 12]; 
+		uint32_t * address_buff = (uint32_t *) read_block(file_fcb->block_address[12]);
+		return address_buff[block_number - 12];
 	}
 	else if(block_number <= 11 + 1024 + 1024 * 1024){
-		uint32 * address_buff = read_block(block_address[13]);
-		uint32 * address_buff_level2 = address_buff[(block_number - 11 - 1024) / 1024]);
-		return address_buff_level2[(block_number - 11 - 1024) % 1024]		
+		uint32_t * address_buff = (uint32_t *) read_block(file_fcb->block_address[13]);
+		uint32_t * address_buff_level2 = (uint32_t *) read_block(address_buff[(block_number - 11 - 1024) / 1024]);
+		return address_buff_level2[(block_number - 11 - 1024) % 1024];
 	}
 }
 
 void seek_file(FCB * file_fcb, int size){
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
-	uint32 block_address = file_fcb->seek_block_addr;
+	// uint32_t block_address = file_fcb->seek_block_addr;
 
-	if(seek_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
+	if(start_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
 		int num_blocks = (byte_offset + size)/super_block.block_size;
-		if(num_blocks == 0){		
+		if(num_blocks == 0){
 			byte_offset = byte_offset + size;
 		}
 		else{
 			file_fcb->seek_block = start_block + num_blocks;
 			file_fcb->seek_offset = (byte_offset + size)%super_block.block_size;;
-			file_fcb->seek_block_addr = get_block_address(file_fcb->seek_block);
+			file_fcb->seek_block_addr = get_block_address(file_fcb, file_fcb->seek_block);
 		}
 	}
 	else{
@@ -455,55 +464,56 @@ void seek_file(FCB * file_fcb, int size){
 }
 
 void write_file(FCB * file_fcb, int size, char * data){
-	int start_block = file_fcb->seek_block;
-	int byte_offset = file_fcb->seek_offset;
-	uint32 block_address = file_fcb->seek_block_addr;
-	
-	int j = 0;
+	// int start_block = file_fcb->seek_block;
+	// int byte_offset = file_fcb->seek_offset;
+	// uint32_t block_address = file_fcb->seek_block_addr;
 
-	int num_blocks = (byte_offset + size)/super_block.block_size;
-		
-	char * write_buff;
-	write_buff = malloc(super_block.block_size);
-	if(num_blocks == 0){		
-		write_buff = read_block(block_address);	
-			for(int i = 0; i < size; i++){
-				return_buff[j] = read_buff[byte_offset + i];
-				j++;
-			}
-			byte_offset = byte_offset + size;
-			file_fcb->seek_offset = byte_offset;
-		}
-		else{
-			read_buff = read_block(block_address);
-			for(int i = byte_offset; i < super_block.block_size; i++){
-				return_buff[j] = read_buff[i];
-				j++;
-			}
-			start_block++;
+	// int j = 0;
 
-			for(int i = 1; i <= num_blocks - 1; i++){
-				block_address = get_block_address(start_block);
-				start_block++;
-				read_buff = read_block(block_address);
-				for(int k = 0; k < super_block.block_size; k++){
-					return_buff[j] = read_buff[k];
-					j++;
-				}
-			}
+	// int num_blocks = (byte_offset + size)/super_block.block_size;
 
-			block_address = get_block_address(file_fcb, start_block);
-			read_buff = read_block(block_address);
-			for(int k = 0; j < size; k++){
-				return_buff[j] = read_buff[k];
-				j++;
-			}
-			file_fcb->seek_block = start_block;
-			file_fcb->seek_offset = k;
-			file_fcb->seek_block_addr = block_address;
-		}
-	}
-	else{
-		fatal("read_file: size out of range");
-	}
+	// char * write_buff;
+	// write_buff = malloc(super_block.block_size);
+	// 	if(num_blocks == 0){
+	// 		write_buff = read_block(block_address);
+
+	// 		for(int i = 0; i < size; i++){
+	// 			return_buff[j] = read_buff[byte_offset + i];
+	// 			j++;
+	// 		}
+	// 		byte_offset = byte_offset + size;
+	// 		file_fcb->seek_offset = byte_offset;
+	// 	}
+	// 	else{
+	// 		read_buff = read_block(block_address);
+	// 		for(int i = byte_offset; i < super_block.block_size; i++){
+	// 			return_buff[j] = read_buff[i];
+	// 			j++;
+	// 		}
+	// 		start_block++;
+
+	// 		for(int i = 1; i <= num_blocks - 1; i++){
+	// 			block_address = get_block_address(start_block);
+	// 			start_block++;
+	// 			read_buff = read_block(block_address);
+	// 			for(int k = 0; k < super_block.block_size; k++){
+	// 				return_buff[j] = read_buff[k];
+	// 				j++;
+	// 			}
+	// 		}
+
+	// 		block_address = get_block_address(file_fcb, start_block);
+	// 		read_buff = read_block(block_address);
+	// 		for(int k = 0; j < size; k++){
+	// 			return_buff[j] = read_buff[k];
+	// 			j++;
+	// 		}
+	// 		file_fcb->seek_block = start_block;
+	// 		file_fcb->seek_offset = k;
+	// 		file_fcb->seek_block_addr = block_address;
+	// 	}
+	// }
+	// else{
+	// 	fatal("read_file: size out of range");
+	// }
 }
