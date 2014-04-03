@@ -371,13 +371,13 @@ char * read_file(FCB * file_fcb, int size){
 
 	return_buff = malloc(size);
 
-	if(seek_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
-		int num_blocks = (byte_offset + size)/super_block.block_size;
+	if(seek_block*super_block.block_size + byte_offset + 1 + size <= file_fcb->file_size){
+		int num_blocks = (byte_offset + 1 + size)/super_block.block_size;
 		
 		if(num_blocks == 0){		
 			read_buff = read_block(block_address);	
 			for(int i = 0; i < size; i++){
-				return_buff[j] = read_buff[byte_offset + i];
+				return_buff[j] = read_buff[byte_offset + 1 + i];
 				j++;
 			}
 			byte_offset = byte_offset + size;
@@ -392,7 +392,7 @@ char * read_file(FCB * file_fcb, int size){
 			start_block++;
 
 			for(int i = 1; i <= num_blocks - 1; i++){
-				block_address = get_block_address(start_block);
+				block_address = get_block_address(file_fcb, start_block);
 				start_block++;
 				read_buff = read_block(block_address);
 				for(int k = 0; k < super_block.block_size; k++){
@@ -429,7 +429,7 @@ uint32 get_block_address(FCB * file_fcb, int block_number){
 	else if(block_number <= 11 + 1024 + 1024 * 1024){
 		uint32 * address_buff = read_block(block_address[13]);
 		uint32 * address_buff_level2 = address_buff[(block_number - 11 - 1024) / 1024]);
-		return address_buff_level2[(block_number - 11 - 1024) % 1024]		
+		return address_buff_level2[(block_number - 11 - 1024) % 1024];
 	}
 }
 
@@ -438,9 +438,9 @@ void seek_file(FCB * file_fcb, int size){
 	int byte_offset = file_fcb->seek_offset;
 	uint32 block_address = file_fcb->seek_block_addr;
 
-	if(seek_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
+	if(seek_block*super_block.block_size + byte_offset + 1 + size <= file_fcb->file_size){
 		int num_blocks = (byte_offset + size)/super_block.block_size;
-		if(num_blocks == 0){		
+		if(num_blocks == 0){
 			byte_offset = byte_offset + size;
 		}
 		else{
@@ -458,52 +458,108 @@ void write_file(FCB * file_fcb, int size, char * data){
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
 	uint32 block_address = file_fcb->seek_block_addr;
-	
+
 	int j = 0;
 
-	int num_blocks = (byte_offset + size)/super_block.block_size;
-		
+    int num_blocks = ceil((byte_offset + size)/super_block.block_size);
+	int total_num_blocks = ceil(file_fcb->file_size / super_block.block_size);
+
 	char * write_buff;
 	write_buff = malloc(super_block.block_size);
-	if(num_blocks == 0){		
-		write_buff = read_block(block_address);	
-			for(int i = 0; i < size; i++){
-				return_buff[j] = read_buff[byte_offset + i];
-				j++;
-			}
-			byte_offset = byte_offset + size;
-			file_fcb->seek_offset = byte_offset;
+
+	if(start_block >= total_num_blocks){
+		block_address = allocate_block(file_fcb, start_block);
+	}
+	if(num_blocks == 1){
+		write_buff = read_block(block_address);
+		int i = 0;
+		for(i = byte_offset; j < size; i++){
+			write_buff[i] = data[j];
+			j++;
 		}
-		else{
-			read_buff = read_block(block_address);
-			for(int i = byte_offset; i < super_block.block_size; i++){
-				return_buff[j] = read_buff[i];
-				j++;
-			}
-			start_block++;
-
-			for(int i = 1; i <= num_blocks - 1; i++){
-				block_address = get_block_address(start_block);
-				start_block++;
-				read_buff = read_block(block_address);
-				for(int k = 0; k < super_block.block_size; k++){
-					return_buff[j] = read_buff[k];
-					j++;
-				}
-			}
-
-			block_address = get_block_address(file_fcb, start_block);
-			read_buff = read_block(block_address);
-			for(int k = 0; j < size; k++){
-				return_buff[j] = read_buff[k];
-				j++;
-			}
-			file_fcb->seek_block = start_block;
-			file_fcb->seek_offset = k;
-			file_fcb->seek_block_addr = block_address;
+		file_fcb->seek_offset = byte_offset + size;
+		write_block(block_address, write_buff);
+		if(file_fcb->seek_offset == super_block.block_size){
+			file_fcb->seek_offset = 0;
+			file_fcb->seek_block += 1;
 		}
 	}
 	else{
-		fatal("read_file: size out of range");
+		int i = 0;
+		for(i = 0; i < num_blocks; i++){
+			if(start_block < total_num_blocks){
+				if(0 == i){
+					write_buff = read_block(block_address);
+					int k = 0;
+					for(k = byte_offset; k < super_block.block_size; k++){
+						write_buff[k] = data[j];
+						j++;
+					}
+				}
+				else if(i == num_blocks - 1){
+					int k = 0;
+					for(k = 0; j < size; k++){
+						write_buff[k] = data[j];
+						j++;
+					}
+					file_fcb->seek_offset = k;
+					file_fcb->seek_block = start_block;
+					if(file_fcb->seek_offset == super_block.block_size){
+						file_fcb->seek_offset = 0;
+						file_fcb->seek_block += 1;
+					}
+				}
+				else{
+					int k = 0;
+					for(k = 0; k < super_block.block_size; k++){
+						write_buff[k] = data[j];
+						j++;
+					}
+				}
+				write_block(block_address, write_buff);
+				start_block += 1;
+				block_address = get_block_address(file_fcb, start_block);
+			}
+			else{
+				block_address = allocate_block(file_fcb, start_block);
+				total_num_blocks += 1;
+				i -= 1;
+			}
+		}
 	}
+	file_fcb->seek_block_addr = block_address;
+	file_fcb->file_size += size;
+}
+
+uint32_t allocate_block(FCB * file_fcb, int block_number){
+ 	uint32_t new_block_addr = (uint32_t)get_free_block();
+
+ 	if(block_number <= 11){
+		file_fcb->block_address[block_number] = new_block_addr;
+	}
+	else if(block_number <= 11 + 1024){
+		if(block_number == 12){
+			file_fcb->block_address[12] = new_block_addr;
+			new_block_addr = (uint32_t) get_free_block();
+		}
+		uint32 * address_buff = (uint32_t *) read_block(block_address[12]);
+		address_buff[block_number - 12] = new_block_addr;
+		write_block(block_address[12], address_buff);
+	}
+	else if(block_number <= 11 + 1024 + 1024 * 1024){
+		if(block_number == 12 + 1024){
+			file_fcb->block_address[13] = new_block_addr;
+			new_block_addr = (uint32_t) get_free_block();
+		}
+		uint32 * address_buff = read_block(block_address[13]);
+		if((block_number - 12 - 1024) % 1024 == 0){
+			address_buff[(block_number - 12 - 1024) / 1024] = new_block_addr;
+			new_block_addr = (uint32_t) get_free_block();
+			write_block(block_address[13], address_buff);
+		}
+		uint32 * address_buff_level2 = (uint32_t *) read_block(address_buff[(block_number - 11 - 1024) / 1024]);
+		address_buff_level2[(block_number - 11 - 1024) % 1024] = new_block_addr;
+		write_block(address_buff[(block_number - 11 - 1024) / 1024], address_buff_level2);
+	}
+	return new_block_addr;
 }
