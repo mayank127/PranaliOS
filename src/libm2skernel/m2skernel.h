@@ -40,7 +40,7 @@
 #include <errno.h>
 #include <gpukernel.h>
 #include <sys/time.h>
-
+#include <math.h>
 
 /* Some forward declarations */
 struct ctx_t;
