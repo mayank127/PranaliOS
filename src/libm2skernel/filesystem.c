@@ -24,7 +24,7 @@ void * read_block(int file_block_number){
 }
 
 
-void write_block(int file_block_number, char * buffer){
+void write_block(int file_block_number, void * buffer){
 
 	if(file_block_number >= total_blocks_virtual_mem){
 		fatal("read_block : block number out of range");
@@ -246,7 +246,7 @@ struct FCB * get_parent_directory(char * path) {
 	}
 	char * name;
 	name = strtok(path,"/");
-	struct FCB * parent;
+	struct FCB * parent = NULL;
 	struct FCB * temp = search_file_or_directory(name);
 	if (temp==NULL) {
 		// error root not found
@@ -440,6 +440,10 @@ uint32_t get_block_address(FCB * file_fcb, int block_number){
 		uint32_t * address_buff_level2 = (uint32_t *) read_block(address_buff[(block_number - 11 - 1024) / 1024]);
 		return address_buff_level2[(block_number - 11 - 1024) % 1024];
 	}
+	else{
+		fatal("get_block_address: size out of range");
+		return -1;
+	}
 }
 
 void seek_file(FCB * file_fcb, int size){
@@ -466,7 +470,7 @@ void seek_file(FCB * file_fcb, int size){
 void write_file(FCB * file_fcb, int size, char * data){
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
-	uint32 block_address = file_fcb->seek_block_addr;
+	uint32_t block_address = file_fcb->seek_block_addr;
 
 	int j = 0;
 
@@ -551,22 +555,22 @@ uint32_t allocate_block(FCB * file_fcb, int block_number){
 			file_fcb->block_address[12] = new_block_addr;
 			new_block_addr = (uint32_t) get_free_block();
 		}
-		uint32 * address_buff = (uint32_t *) read_block(block_address[12]);
+		uint32_t * address_buff = (uint32_t *) read_block(file_fcb->block_address[12]);
 		address_buff[block_number - 12] = new_block_addr;
-		write_block(block_address[12], address_buff);
+		write_block(file_fcb->block_address[12], address_buff);
 	}
 	else if(block_number <= 11 + 1024 + 1024 * 1024){
 		if(block_number == 12 + 1024){
 			file_fcb->block_address[13] = new_block_addr;
 			new_block_addr = (uint32_t) get_free_block();
 		}
-		uint32 * address_buff = read_block(block_address[13]);
+		uint32_t * address_buff = read_block(file_fcb->block_address[13]);
 		if((block_number - 12 - 1024) % 1024 == 0){
 			address_buff[(block_number - 12 - 1024) / 1024] = new_block_addr;
 			new_block_addr = (uint32_t) get_free_block();
-			write_block(block_address[13], address_buff);
+			write_block(file_fcb->block_address[13], address_buff);
 		}
-		uint32 * address_buff_level2 = (uint32_t *) read_block(address_buff[(block_number - 11 - 1024) / 1024]);
+		uint32_t * address_buff_level2 = (uint32_t *) read_block(address_buff[(block_number - 11 - 1024) / 1024]);
 		address_buff_level2[(block_number - 11 - 1024) % 1024] = new_block_addr;
 		write_block(address_buff[(block_number - 11 - 1024) / 1024], address_buff_level2);
 	}

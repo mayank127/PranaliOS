@@ -736,8 +736,9 @@ void add_free_FCB(int fcb);
 
 
 void * read_block(int file_block_number);
-void write_block(int file_block_number, char * buff);
-int file_seek(FCB * file_fcb, int offset, int start_point) ;
+void write_block(int file_block_number, void * buff);
+int file_seek(FCB * file_fcb, int offset, int start_point);
+uint32_t allocate_block(FCB * file_fcb, int block_number);
 
 
 void update_time_stamps(struct FCB * file, int mask);

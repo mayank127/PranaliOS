@@ -158,7 +158,7 @@ int get_param(const char *param, char *value){
 				return 0;	
 			}
 		}
-		return 1;			
+		return 1;
 	}
 }
 
@@ -166,7 +166,7 @@ void set_defaults(void) {
 
     FILE* check = fopen("Sim_disk", "r");
     if(check != NULL){
-        disk_file_pointer = fopen("Sim_disk", "wb+");
+        disk_file_pointer = fopen("Sim_disk", "ab+");
         read_super_block();
     }
     else{
@@ -194,7 +194,7 @@ void set_defaults(void) {
                 "(dd if=/dev/zero of=Sim_disk bs=%dx%dx%db count=1) 2> /dev/zero",
                 heads, tracks, sectors);
         system(command);
-        disk_file_pointer = fopen("Sim_disk", "wb+");
+        disk_file_pointer = fopen("Sim_disk", "ab+");
 
         init_super_block();
     }
