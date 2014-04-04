@@ -190,11 +190,11 @@ void update_time_stamps(struct FCB * file, int mask) {
 			file->last_seen_time = file->creation_time;
 			break;
 		case 2: // update modification time and seen time
-			file->last_modified_time = file->creation_time;
-			file->last_seen_time = file->creation_time;
+			file->last_modified_time = time(NULL);
+			file->last_seen_time = file->last_modified_time;
 			break;
 		case 3: // update seen time
-			file->last_seen_time = file->creation_time;
+			file->last_seen_time = time(NULL);
 			break;
 	}
 }
@@ -288,18 +288,31 @@ struct FCB * create_root_FCB() {
 }
 
 // create a new file/directory FCB and add to its parent directory
-void create_file(char * path, char * name, int type) {
+FCB * create_file(char * p, int type, int uid) {
 	/*
 		type = 0 :- directory creation
 		type = 1 :- file creation
 	*/
+
+	int i = 0;
+	int last = 0;
+	for(i = 0; i < strlen(p); i++){
+		if(p[i] == '/')
+			last = i;
+	}
+	char name[50];
+	char path[300];
+	strcpy(name, p+last);
+	strcpy(path, p);
+	path[last] = 0;
+
 	struct FCB * cur_directory = search_file_or_directory(path);
 	struct FCB * new_file = (struct FCB *) (malloc(sizeof(struct FCB)));
 	new_file->index = get_free_FCB_index();
 	new_file->file_size = 0;
 	strcmp(new_file->name,name);
 	update_time_stamps(new_file,1);
-	// new_file->uid = get_uid();
+	new_file->uid = uid;
 	new_file->type = type;
 	new_file->seek_block = 0;
 	new_file->seek_block_addr = new_file->block_address[0];
@@ -312,6 +325,7 @@ void create_file(char * path, char * name, int type) {
 	write_file(cur_directory,sizeof(struct FCB),(char *)(new_file));
 	cur_directory->file_size += sizeof(struct FCB);
 	update_time_stamps(cur_directory,2);
+	return new_file;
 }
 
 void delete_file(char * path) {
@@ -335,7 +349,7 @@ void delete_file(char * path) {
 		prev = next;
 	}
 	prev->next = NULL;
-	//TODO truncate_file(directory);
+	truncate_file(directory);
 	struct FCB_list * itr = &cur_list;
 	while(itr->next != NULL){
 		if (strcmp(itr->cur->name, file->name) != 0){
@@ -344,6 +358,8 @@ void delete_file(char * path) {
 			directory->file_size += sizeof(struct FCB);
 		}
 	}
+	truncate_file(file);
+	add_free_FCB(file->index);
 }
 
 // remove a directory (recursively deleting all its contents)
@@ -575,4 +591,119 @@ uint32_t allocate_block(FCB * file_fcb, int block_number){
 		write_block(address_buff[(block_number - 11 - 1024) / 1024], address_buff_level2);
 	}
 	return new_block_addr;
+}
+
+
+void truncate_file(FCB * file_fcb){
+   if(file_fcb != NULL){
+       int number_of_blocks = ceil(file_fcb->file_size/super_block.block_size) ;
+       file_fcb->file_size = 0 ;
+       file_fcb->seek_offset = 0 ;
+    	file_fcb->seek_block = 0 ;
+       int i ;
+       for(i = 0 ; i < number_of_blocks ; i++){
+           uint32_t block_num =  get_block_address(file_fcb , i) ;
+           add_free_block(block_num) ;
+       }
+   }
+}
+
+///Library Routines
+
+int open_call(char * path, int mode, int pid, int uid){
+	int i = 0;
+	for(i=0; i<1024;i++){
+		if(oft_table[i].file_fcb == NULL){
+			oft_table[i].pid = pid;
+			oft_table[i].offset = 0;
+			oft_table[i].mode = mode;
+			switch(mode){
+				case 'r':
+					oft_table[i].file_fcb = search_file_or_directory(path);
+					if(oft_table[i].file_fcb == NULL){
+						return -1;
+					}
+					return i;
+				case 'a':
+					oft_table[i].file_fcb = search_file_or_directory(path);
+					if(oft_table[i].file_fcb == NULL){
+						oft_table[i].file_fcb = create_file(path, 1, uid);
+						if(oft_table[i].file_fcb == NULL){
+							return -1;
+						}
+						return i;
+					}
+					oft_table[i].offset = oft_table[i].file_fcb->file_size;
+					return i;
+				case 'w':
+					oft_table[i].file_fcb = search_file_or_directory(path);
+					if(oft_table[i].file_fcb == NULL){
+						oft_table[i].file_fcb = create_file(path, 1, uid);
+						if(oft_table[i].file_fcb == NULL){
+							return -1;
+						}
+						return i;
+					}
+					truncate_file(oft_table[i].file_fcb);
+					return i;
+				default:
+					return -1;
+			}
+		}
+	}
+	return -1;
+}
+
+int close_call(int num, int pid){
+	if(oft_table[num].pid == pid){
+		oft_table[num].file_fcb = NULL;
+		return 1;
+	}
+	return -1;
+}
+
+int read_call(int num, char * buf, int size, int pid){
+	if(oft_table[num].pid == pid && oft_table[num].file_fcb != NULL){
+		seek_file(oft_table[num].file_fcb, oft_table[num].offset);
+		buf = read_file(oft_table[num].file_fcb, size);
+		oft_table[num].offset += size;
+		return 1;
+	}
+	return -1;
+}
+
+int write_call(int num, char * buf, int size, int pid){
+	if(oft_table[num].pid == pid && oft_table[num].file_fcb != NULL){
+		seek_file(oft_table[num].file_fcb, oft_table[num].offset);
+		write_file(oft_table[num].file_fcb, size, buf);
+		oft_table[num].offset += size;
+		return 1;
+	}
+	return -1;
+}
+
+int seek_call(int num, int size, int pid){
+	if(oft_table[num].pid == pid && oft_table[num].file_fcb != NULL){
+		oft_table[num].offset = size;
+		return 1;
+	}
+	return -1;
+}
+
+int tell_call(int num, int pid){
+	if(oft_table[num].pid == pid && oft_table[num].file_fcb != NULL){
+		return oft_table[num].offset;
+	}
+	return -1;
+}
+
+int create_directory(char * path, int uid){
+	if(create_file(path, 0, uid) != NULL)
+		return 1;
+	return -1;
+}
+
+int remove_call(char * path, int uid){
+	remove_directory(path);
+	return 1;
 }

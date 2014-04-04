@@ -833,100 +833,66 @@ int handle_guest_syscalls() {
         isa_ctx->instr_slice = isa_regs->ebx;
         break;
     }
-    case syscall_code_read_virtual:
+    case syscall_code_read_file:
     {
-        int bytes = isa_regs->ebx;
-        uint32_t addr = isa_regs->ecx;
-        int block_number = isa_regs->edx;
-        int offset = isa_regs->esi;
-        
-        if(block_number >= total_blocks_virtual_mem){
-        	fatal("syscall read_virtual : block number out of range");
-        }
-
-        if (disk_block_data[block_number] == isa_ctx->uid){
-        	if(offset + bytes < 4 * 1024){
-        		fseek(disk_file_pointer, block_number*4*1024 + offset, SEEK_SET);
-        		void* buf;
-        		buf = malloc(bytes);
-        		fread(buf, bytes, 1, disk_file_pointer);
-            	mem_write(isa_mem, addr, bytes, buf);
-            	syscall_debug_string("  buf", buf, bytes, 1);
-            	free(buf);
-            	struct interrupt_tuple* intrpt;
-            	intrpt = malloc(sizeof(struct interrupt_tuple));
-            	int delta = block_number * 1000000 / blocks_in_track + 1000000;
-            	intrpt->type = IO;
-            	intrpt->pid = isa_ctx->pid;
-            	intrpt->inst_no = instruction_number + delta;
-            	add_interrupt(intrpt);
-            	ctx_clear_status(isa_ctx, isa_ctx->status);
-            	ctx_set_status(isa_ctx, ctx_suspended);
-            	printf("Read Intrpt %lld, %lld\n", instruction_number, intrpt->inst_no);
-
-        	}
-        	else
-        		fatal("syscall read_virtual : offset out of bound");
-
-        }
-        else
-        	fatal("syscall read_virtual : block not for this process");
-
+        int num = isa_regs->ebx;
+        char * buf = (char *) isa_regs->ecx;
+        int size = isa_regs->edx;
+        return read_call(num, buf, size, get_pid());
         break;
     }
-    case syscall_code_write_virtual:
+    case syscall_code_write_file:
     {
-        int bytes = isa_regs->ebx;
-        uint32_t addr = isa_regs->ecx;
-        int block_number = isa_regs->edx;
-        int offset = isa_regs->esi;
-
-        if(block_number >= total_blocks_virtual_mem){
-        	fatal("syscall write_virtual : block number out of range");
-        }
-
-		if (disk_block_data[block_number] == -1
-				|| disk_block_data[block_number] == isa_ctx->uid) {
-			if (offset + bytes < 4 * 1024) {
-				disk_block_data[block_number] = isa_ctx->uid;
-				fseek(disk_file_pointer, block_number * 4 * 1024 + offset,
-						SEEK_SET);
-				void* buf;
-				buf = calloc(1, bytes);
-				mem_read(isa_mem, addr, bytes, buf);
-				syscall_debug_string("  buf", buf, bytes, 1);
-				fwrite(buf, bytes, 1, disk_file_pointer);
-				free(buf);
-				struct interrupt_tuple* intrpt;
-				intrpt = malloc(sizeof(struct interrupt_tuple));
-				int delta = block_number * 1000000 / blocks_in_track + 1000000;
-				intrpt->type = IO;
-				intrpt->pid = isa_ctx->pid;
-				intrpt->inst_no = instruction_number + delta;
-				add_interrupt(intrpt);
-				ctx_clear_status(isa_ctx, isa_ctx->status);
-				ctx_set_status(isa_ctx, ctx_suspended);
-				printf("Write Intrpt %lld, %lld\n", instruction_number, intrpt->inst_no);
-			}
-			else
-				fatal("syscall write_virtual : offset out of bound");
-
-		}
-		else{
-			fatal("syscall write_virtual : block not for this process");
-		}
+        int num = isa_regs->ebx;
+        char * buf = (char *) isa_regs->ecx;
+        int size = isa_regs->edx;
+        return write_call(num, buf, size, get_pid());
         break;
     }
-
-
-        default:
-            if (syscode >= syscall_code_count) {
-                retval = -38;
-            } else {
-                fatal("not implemented system call '%s' (code %d) at 0x%x\n%s",
-                        syscode < syscall_code_count ? syscall_name[syscode] : "",
-                        syscode, isa_regs->eip, err_syscall_note);
-            }
+    case syscall_code_seek_file:
+    {
+        int num = isa_regs->ebx;
+        int size = isa_regs->ecx;
+        return seek_call(num, size, get_pid());
+        break;
+    }
+    case syscall_code_tell_file:
+    {
+        int num = isa_regs->ebx;
+        return tell_call(num, get_pid());
+        break;
+    }
+    case syscall_code_open_file:
+    {
+        char * path = (char *) isa_regs->ebx;
+        int mode = isa_regs->ecx;
+        return open_call(path, mode, get_pid(), isa_ctx->uid);
+        break;
+    }
+    case syscall_code_close_file:
+    {
+        int num = isa_regs->ebx;
+        return close_call(num, get_pid());
+        break;
+    }
+    case syscall_code_create_directory:
+    {
+        char * path = (char *) isa_regs->ebx;
+        return create_directory(path, isa_ctx->uid);
+    }
+    case syscall_code_remove_file:
+    {
+        char * path = (char *) isa_regs->ebx;
+        return remove_call(path, isa_ctx->uid);
+    }
+    default:
+        if (syscode >= syscall_code_count) {
+            retval = -38;
+        } else {
+            fatal("not implemented system call '%s' (code %d) at 0x%x\n%s",
+                    syscode < syscall_code_count ? syscall_name[syscode] : "",
+                    syscode, isa_regs->eip, err_syscall_note);
+        }
 
     }
 

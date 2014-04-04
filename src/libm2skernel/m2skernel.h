@@ -715,11 +715,20 @@ typedef struct super_block {
 	struct int_list * free_FCB_list_head;
 } SuperBlock;
 
-typedef struct int_list
-{
+typedef struct int_list{
 	int num;
 	struct int_list * next;
 } int_list;
+
+typedef struct oft_entry{
+	int pid;
+	struct FCB * file_fcb;
+	int offset;
+	int mode;
+} oft_entry;
+
+oft_entry oft_table[1024];
+
 char * read_file(FCB * file_fcb, int size);
 void write_file(FCB * file_fcb, int size, char * data);
 void seek_file(FCB * file_fcb, int size);
@@ -746,9 +755,19 @@ struct FCB * search_in_directory(struct FCB * directory, char * name);
 struct FCB * search_file_or_directory(char * path);
 struct FCB * get_parent_directory(char * path);
 struct FCB * create_root_FCB();
-void create_file(char * path, char * name, int type);
+FCB * create_file(char * path, int type, int uid);
 void delete_file(char * path);
 void remove_directory(char * path);
+void truncate_file(FCB * file_fcb);
+
+int open_call(char * path, int mode, int pid, int uid);
+int close_call(int num, int pid);
+int read_call(int num, char * buf, int size, int pid);
+int write_call(int num, char * buf, int size, int pid);
+int seek_call(int num, int size, int pid);
+int tell_call(int num, int pid);
+int create_directory(char * path, int uid);
+int remove_call(char * path, int uid);
 
 #endif
 
