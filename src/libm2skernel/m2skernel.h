@@ -715,6 +715,20 @@ typedef struct super_block {
 	struct int_list * free_FCB_list_head;
 } SuperBlock;
 
+typedef struct cache_entry{
+	uint32_t physical_address ;
+	void * block_data ;
+	int dirty_bit ;
+	struct cache_entry * next ;
+	struct cache_entry * prev ;
+
+}  cache_entry;
+
+typedef struct cache_entry_list{
+	struct cache_entry * head ;
+	struct cache_entry * tail ;
+} cache_entry_list;
+
 typedef struct int_list
 {
 	int num;
@@ -730,6 +744,7 @@ void init_super_block();
 void write_super_block();
 int list_size(int_list*);
 int get_free_FCB_index();
+void truncate_file(FCB * file_fcb) ;
 int get_free_block();
 void add_free_block(int block_num);
 void add_free_FCB(int fcb);
@@ -750,5 +765,9 @@ void create_file(char * path, char * name, int type);
 void delete_file(char * path);
 void remove_directory(char * path);
 
+
+//disk_cache functions 
+void remove_entry() ;
+void * read_block_from_cache(uint32_t physical_address) ;
 #endif
 
