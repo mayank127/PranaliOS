@@ -18,7 +18,6 @@ void * read_block(int file_block_number){
 	if (number_of_byte_read != super_block.block_size) {
 		fatal("read error");
 	}
-	printf("%d - %s READ\n", file_block_number, (char *)read_buffer);
 	return read_buffer ;
 
 }
@@ -32,16 +31,6 @@ void write_block(int file_block_number, void * buffer){
 
 	fseek(disk_file_pointer, file_block_number*4096, SEEK_SET);
 	fwrite(buffer, 1, super_block.block_size, disk_file_pointer);
-
-	printf("%d - %s WRITE\n", file_block_number, (char *)buffer);
-
-	void * read_buffer;
-	read_buffer = malloc(super_block.block_size);
-	fseek(disk_file_pointer, file_block_number*4096 , SEEK_SET) ;
-	fread(read_buffer, 1, super_block.block_size, disk_file_pointer);
-	printf("%d - %s INSIDEWRITE\n", file_block_number, (char *)read_buffer);
-
-
 }
 
 void init_super_block(){
@@ -210,11 +199,14 @@ void update_time_stamps(struct FCB * file, int mask) {
 // search for file name in directory
 struct FCB * search_in_directory(struct FCB * directory, char * name) {
 	int number_of_entries = directory->file_size / sizeof(struct FCB);
+	printf("%s %s, %d %d\n", name, directory->path, directory->file_size, number_of_entries);
+
 	int i = 0;
 	for (i=0;i<number_of_entries;i++) {
 		struct FCB * temp = (struct FCB *) malloc (sizeof(struct FCB));
 		seek_file(directory,i*sizeof(struct FCB));
 		temp = (FCB *) read_file(directory, sizeof(struct FCB));
+		printf("%s == %s, %s, %s\n", name, temp->name, temp->path, directory->path);
 		if (strcmp(name,temp->name)==0) {
 			return temp;
 		}
@@ -234,15 +226,22 @@ struct FCB * search_file_or_directory(char * p) {
 		struct FCB * temp = search_file_or_directory(name);
 		if (temp==NULL) {
 			// error root not found
+			printf("aa\n");
+			return NULL;
 		}
 		name = strtok(NULL,"/");
 		while (name!=NULL) {
-			if (temp->type==1) {
+			printf("%s - Searching for\n", name);
+			if (temp == NULL || temp->type==1) {
 				// error temp is not a directory
+			printf("bb\n");
+				return NULL;
 			}
 			temp = search_in_directory(temp,name);
 			if (temp==NULL) {
 				// error couldn't find file
+				printf("cc\n");
+				return NULL;
 			}
 			name = strtok(NULL,"/");
 		}
@@ -286,7 +285,7 @@ struct FCB * create_root_FCB() {
 		uid = 0 for root directory [created by PranaliOS]
 	*/
 	struct FCB * root = (struct FCB *) malloc(sizeof(struct FCB));
-	strcmp(root->name,"root");
+	strcpy(root->name,"root");
 	root->index = 0;
 	root->file_size = 0;
 	update_time_stamps(root,1);
@@ -295,6 +294,7 @@ struct FCB * create_root_FCB() {
 	root->seek_block = 0;
 	root->seek_block_addr = root->block_address[0];
 	root->seek_offset = 0;
+	root->location = 0;
 	strcpy(root->path, "root");
 	return root;
 }
@@ -324,27 +324,29 @@ FCB * create_file(char * p, int type, int uid) {
 	}
 	path[i] = 0;
 	printf("%s %s %s %d\n", p, path, name, last);
-	// path[last] = 0;
 
 	struct FCB * cur_directory = search_file_or_directory(path);
 	struct FCB * new_file = (struct FCB *) (malloc(sizeof(struct FCB)));
 	new_file->index = get_free_FCB_index();
 	new_file->file_size = 0;
-	strcmp(new_file->name,name);
+	strcpy(new_file->name,name);
 	update_time_stamps(new_file,1);
 	new_file->uid = uid;
 	new_file->type = type;
 	new_file->seek_block = 0;
 	new_file->seek_block_addr = new_file->block_address[0];
 	new_file->seek_offset = 0;
+	new_file->location = cur_directory->file_size;
 	strcpy(new_file->path, path);
 	strcat(new_file->path, "/");
 	strcat(new_file->path, name);
 
 	seek_file(cur_directory, cur_directory->file_size);
 	write_file(cur_directory,sizeof(struct FCB),(char *)(new_file));
-	cur_directory->file_size += sizeof(struct FCB);
+	//cur_directory->file_size += sizeof(struct FCB);
 	update_time_stamps(cur_directory,2);
+	printf("%s %d AFTER CREATION\n", cur_directory->path, cur_directory->file_size);
+	update_directory_trace(cur_directory);
 	return new_file;
 }
 
@@ -375,9 +377,9 @@ void delete_file(char * p) {
 	struct FCB_list * itr = &cur_list;
 	while(itr->next != NULL){
 		if (strcmp(itr->cur->name, file->name) != 0){
+			itr->cur->location = directory->file_size;
 			seek_file(directory, directory->file_size);
 			write_file(directory,sizeof(struct FCB),(char *)(itr->cur));
-			directory->file_size += sizeof(struct FCB);
 		}
 	}
 	truncate_file(file);
@@ -422,7 +424,6 @@ char * read_file(FCB * file_fcb, int size){
 			int i = 0;
 			for(i = 0; i < size; i++){
 				return_buff[j] = read_buff[byte_offset + i];
-				printf("%c - %d Read - %d\n", return_buff[j], j, block_address);
 				j++;
 			}
 			byte_offset = byte_offset + size;
@@ -486,7 +487,6 @@ uint32_t get_block_address(FCB * file_fcb, int block_number){
 }
 
 void seek_file(FCB * file_fcb, int size){
-	printf("%d %d\n", size, file_fcb->file_size);
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
 	// uint32_t block_address = file_fcb->seek_block_addr;
@@ -524,7 +524,6 @@ void write_file(FCB * file_fcb, int size, char * data){
 		int i = 0;
 		for(i = byte_offset; j < size; i++){
 			write_buff[i] = data[j];
-			printf("%c - %d Write - %d\n", write_buff[i], i, block_address);
 			j++;
 		}
 		file_fcb->seek_offset = byte_offset + size;
@@ -675,8 +674,27 @@ int open_call(char * path, int mode, int pid, int uid){
 	return -1;
 }
 
+void update_directory_trace(FCB * file){
+	if(strcmp(file->name, "root") == 0){
+		write_super_block();
+	}
+	else{
+		FCB * parent = get_parent_directory(file->path);
+		seek_file(parent, file->location);
+		write_file(parent, sizeof(FCB), (char*)file);
+		printf("%d FILE SIZE AT CLOSE %d\n", file->file_size, file->location);
+		seek_file(parent, file->location);
+		
+		FCB* temp = (FCB*)malloc(sizeof(FCB));
+		temp = (FCB*) read_file(parent, sizeof(FCB));
+		printf("%s %d HERE IT IS\n", temp->path, temp->file_size);
+		write_super_block();
+	}
+}
+
 int close_call(int num, int pid){
 	if(oft_table[num].pid == pid){
+		update_directory_trace(oft_table[num].file_fcb);
 		oft_table[num].file_fcb = NULL;
 		return 1;
 	}
@@ -686,7 +704,11 @@ int close_call(int num, int pid){
 int read_call(int num, char * buf, int size, int pid){
 	if(oft_table[num].pid == pid && oft_table[num].file_fcb != NULL){
 		seek_file(oft_table[num].file_fcb, oft_table[num].offset);
-		buf = read_file(oft_table[num].file_fcb, size);
+		int i = 0;
+		char * temp = read_file(oft_table[num].file_fcb, size);
+		for(i = 0; i< size; i++){
+			buf[i] = temp[i];
+		}
 		oft_table[num].offset += size;
 		return 1;
 	}
@@ -719,14 +741,19 @@ int tell_call(int num, int pid){
 }
 
 int create_directory(char * path, int uid){
-	if(create_file(path, 0, uid) != NULL)
-		return 1;
+	if(search_file_or_directory(path) == NULL)
+		if(create_file(path, 0, uid) != NULL)
+			return 1;
+	printf("Already exists\n");
 	return -1;
 }
 
 int remove_call(char * path, int uid){
-	remove_directory(path);
-	return 1;
+	if(search_file_or_directory(path)){
+		remove_directory(path);
+		return 1;
+	}
+	return -1;
 }
 // disk_cache functions
 

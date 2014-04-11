@@ -841,7 +841,6 @@ int handle_guest_syscalls() {
         char* buf;
         buf = calloc(1, size);
         read_call(num, buf, size, get_pid());
-        printf("%s - Read Data\n", buf);
         mem_write(isa_mem, addr, size, buf);
         break;
     }
@@ -876,7 +875,6 @@ int handle_guest_syscalls() {
         char* buf;
         buf = calloc(1, 500);
         mem_read(isa_mem, addr, 500, buf);
-        printf("%s - File Opening\n", buf);
         return open_call(buf, mode, get_pid(), isa_ctx->uid);
         break;
     }
@@ -892,7 +890,6 @@ int handle_guest_syscalls() {
         char* buf;
         buf = calloc(1, 500);
         mem_read(isa_mem, addr, 500, buf);
-        printf("%s - Directory Creation\n", buf);
         return create_directory(buf, isa_ctx->uid);
     }
     case syscall_code_remove_file:

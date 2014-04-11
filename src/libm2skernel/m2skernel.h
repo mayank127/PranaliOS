@@ -693,6 +693,7 @@ typedef struct FCB {
 	int seek_block;	// init with 0
 	uint32_t seek_block_addr;	// init with address_space[0]
 	int seek_offset; // init with 0
+	int location;
 } FCB;
 
 typedef struct FCB_list{
@@ -790,5 +791,6 @@ int remove_call(char * path, int uid);
 //disk_cache functions 
 void remove_entry() ;
 void * read_block_from_cache(uint32_t physical_address) ;
+void update_directory_trace(FCB* file);
 #endif
 

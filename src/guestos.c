@@ -164,25 +164,25 @@ int get_param(const char *param, char *value){
 
 void set_defaults(void) {
 
+    char param_value[LINE_MAX + 1];
+    get_param("INSTR_SLICE", param_value);
+    instr_slice = atoi(param_value);
+
+    int heads, tracks, sectors;
+    char command[1000];
+    get_param("NUM_HEADS", param_value);
+    heads = atoi(param_value);
+    get_param("NUM_TRACKS", param_value);
+    tracks = atoi(param_value);
+    get_param("NUM_SECTORS", param_value);
+    sectors = atoi(param_value);
     FILE* check = fopen("Sim_disk", "r");
     if(check != NULL){
-        disk_file_pointer = fopen("Sim_disk", "ab+");
+        disk_file_pointer = fopen("Sim_disk", "rb+");
         read_super_block();
+        fclose(check);
     }
     else{
-        char param_value[LINE_MAX + 1];
-        get_param("INSTR_SLICE", param_value);
-        instr_slice = atoi(param_value);
-
-        int heads, tracks, sectors;
-        char command[1000];
-        get_param("NUM_HEADS", param_value);
-        heads = atoi(param_value);
-        get_param("NUM_TRACKS", param_value);
-        tracks = atoi(param_value);
-        get_param("NUM_SECTORS", param_value);
-        sectors = atoi(param_value);
-
         total_blocks_virtual_mem = (heads * tracks * sectors) / 8;
         blocks_in_track = total_blocks_virtual_mem / tracks;
         prev_track = 0;
@@ -194,7 +194,7 @@ void set_defaults(void) {
                 "(dd if=/dev/zero of=Sim_disk bs=%dx%dx%db count=1) 2> /dev/zero",
                 heads, tracks, sectors);
         system(command);
-        disk_file_pointer = fopen("Sim_disk", "ab+");
+        disk_file_pointer = fopen("Sim_disk", "rb+");
 
         init_super_block();
     }
