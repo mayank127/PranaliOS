@@ -8,17 +8,17 @@ void * read_block(int file_block_number){
 
 	void * read_buffer ;
 	size_t number_of_byte_read;
-	read_buffer = malloc(super_block.block_size) ;
+	read_buffer = calloc(1, super_block.block_size) ;
 	if(file_block_number >= total_blocks_virtual_mem){
 		fatal("read_block : block number out of range");
 	}
-	fseek(disk_file_pointer, file_block_number , SEEK_SET) ;
-	number_of_byte_read = fread(read_buffer, super_block.block_size, 1, disk_file_pointer);
+	fseek(disk_file_pointer, file_block_number*4096 , SEEK_SET) ;
+	number_of_byte_read = fread(read_buffer, 1, super_block.block_size, disk_file_pointer);
 
 	if (number_of_byte_read != super_block.block_size) {
 		fatal("read error");
 	}
-
+	printf("%d - %s READ\n", file_block_number, (char *)read_buffer);
 	return read_buffer ;
 
 }
@@ -30,15 +30,23 @@ void write_block(int file_block_number, void * buffer){
 		fatal("read_block : block number out of range");
 	}
 
-	fseek(disk_file_pointer, file_block_number,
-		SEEK_SET);
-	fwrite(buffer, super_block.block_size, 1, disk_file_pointer);
+	fseek(disk_file_pointer, file_block_number*4096, SEEK_SET);
+	fwrite(buffer, 1, super_block.block_size, disk_file_pointer);
+
+	printf("%d - %s WRITE\n", file_block_number, (char *)buffer);
+
+	void * read_buffer;
+	read_buffer = malloc(super_block.block_size);
+	fseek(disk_file_pointer, file_block_number*4096 , SEEK_SET) ;
+	fread(read_buffer, 1, super_block.block_size, disk_file_pointer);
+	printf("%d - %s INSIDEWRITE\n", file_block_number, (char *)read_buffer);
+
 
 }
 
 void init_super_block(){
 	super_block.number_of_blocks = total_blocks_virtual_mem;
-	super_block.block_size = 2048;
+	super_block.block_size = 4096;
 	super_block.blocks_in_track = blocks_in_track;
 	super_block.FCB_root = * (create_root_FCB());
 
@@ -53,7 +61,7 @@ void init_super_block(){
 	size += 1024 * 4;			// 1024 is number of FCBs
 	size += total_blocks_virtual_mem * sizeof(int);
 
-	super_block.size = size/2048 + 1;
+	super_block.size = size/4096 + 1;
 	super_block.free_block_count = super_block.size;
 	write_super_block();
 
@@ -215,7 +223,9 @@ struct FCB * search_in_directory(struct FCB * directory, char * name) {
 }
 
 // search file
-struct FCB * search_file_or_directory(char * path) {
+struct FCB * search_file_or_directory(char * p) {
+	char path[500];
+	strcpy(path, p);
 	if (strcmp(path,"root")==0)
 		return &(super_block.FCB_root);
 	else {
@@ -225,7 +235,7 @@ struct FCB * search_file_or_directory(char * path) {
 		if (temp==NULL) {
 			// error root not found
 		}
-		strtok(NULL,"/");
+		name = strtok(NULL,"/");
 		while (name!=NULL) {
 			if (temp->type==1) {
 				// error temp is not a directory
@@ -240,7 +250,9 @@ struct FCB * search_file_or_directory(char * path) {
 	}
 }
 
-struct FCB * get_parent_directory(char * path) {
+struct FCB * get_parent_directory(char * p) {
+	char path[500];
+	strcpy(path, p);
 	if(strcmp(path,"root")==0) {
 		// error no parent exists for root directory
 	}
@@ -302,9 +314,17 @@ FCB * create_file(char * p, int type, int uid) {
 	}
 	char name[50];
 	char path[300];
-	strcpy(name, p+last);
-	strcpy(path, p);
-	path[last] = 0;
+	strcpy(name, p+last+1);
+	for(i=last+1; i<strlen(p); i++){
+		name[i-last-1] = p[i];
+	}
+	name[i] = 0;
+	for(i = 0; i < last; i++){
+		path[i] = p[i];
+	}
+	path[i] = 0;
+	printf("%s %s %s %d\n", p, path, name, last);
+	// path[last] = 0;
 
 	struct FCB * cur_directory = search_file_or_directory(path);
 	struct FCB * new_file = (struct FCB *) (malloc(sizeof(struct FCB)));
@@ -328,7 +348,9 @@ FCB * create_file(char * p, int type, int uid) {
 	return new_file;
 }
 
-void delete_file(char * path) {
+void delete_file(char * p) {
+	char path[500];
+	strcpy(path, p);
 	struct FCB * file = search_file_or_directory(path);
 	struct FCB * directory = get_parent_directory(path);
 	if (directory == NULL) {
@@ -400,6 +422,7 @@ char * read_file(FCB * file_fcb, int size){
 			int i = 0;
 			for(i = 0; i < size; i++){
 				return_buff[j] = read_buff[byte_offset + i];
+				printf("%c - %d Read - %d\n", return_buff[j], j, block_address);
 				j++;
 			}
 			byte_offset = byte_offset + size;
@@ -463,20 +486,17 @@ uint32_t get_block_address(FCB * file_fcb, int block_number){
 }
 
 void seek_file(FCB * file_fcb, int size){
+	printf("%d %d\n", size, file_fcb->file_size);
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
 	// uint32_t block_address = file_fcb->seek_block_addr;
 
-	if(start_block*super_block.block_size + byte_offset + size <= file_fcb->file_size){
-		int num_blocks = (byte_offset + size)/super_block.block_size;
-		if(num_blocks == 0){
-			byte_offset = byte_offset + size;
-		}
-		else{
-			file_fcb->seek_block = start_block + num_blocks;
-			file_fcb->seek_offset = (byte_offset + size)%super_block.block_size;;
-			file_fcb->seek_block_addr = get_block_address(file_fcb, file_fcb->seek_block);
-		}
+	if(size <= file_fcb->file_size){
+		int num_blocks = size/super_block.block_size;
+		int offset = size%super_block.block_size;
+		file_fcb->seek_block = num_blocks;
+		file_fcb->seek_offset = offset;
+		file_fcb->seek_block_addr = get_block_address(file_fcb, file_fcb->seek_block);
 	}
 	else{
 		fatal("seek_file: size out of range");
@@ -490,11 +510,11 @@ void write_file(FCB * file_fcb, int size, char * data){
 
 	int j = 0;
 
-    int num_blocks = ceil((byte_offset + size)/super_block.block_size);
-	int total_num_blocks = ceil(file_fcb->file_size / super_block.block_size);
+    int num_blocks = ceil((float)(byte_offset + size)/(float)super_block.block_size);
+	int total_num_blocks = ceil((float)file_fcb->file_size / (float)super_block.block_size);
 
 	char * write_buff;
-	write_buff = malloc(super_block.block_size);
+	write_buff = calloc(1, super_block.block_size);
 
 	if(start_block >= total_num_blocks){
 		block_address = allocate_block(file_fcb, start_block);
@@ -504,6 +524,7 @@ void write_file(FCB * file_fcb, int size, char * data){
 		int i = 0;
 		for(i = byte_offset; j < size; i++){
 			write_buff[i] = data[j];
+			printf("%c - %d Write - %d\n", write_buff[i], i, block_address);
 			j++;
 		}
 		file_fcb->seek_offset = byte_offset + size;

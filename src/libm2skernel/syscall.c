@@ -836,16 +836,23 @@ int handle_guest_syscalls() {
     case syscall_code_read_file:
     {
         int num = isa_regs->ebx;
-        char * buf = (char *) isa_regs->ecx;
+        uint32_t addr = isa_regs->ecx;
         int size = isa_regs->edx;
-        return read_call(num, buf, size, get_pid());
+        char* buf;
+        buf = calloc(1, size);
+        read_call(num, buf, size, get_pid());
+        printf("%s - Read Data\n", buf);
+        mem_write(isa_mem, addr, size, buf);
         break;
     }
     case syscall_code_write_file:
     {
         int num = isa_regs->ebx;
-        char * buf = (char *) isa_regs->ecx;
+        uint32_t addr = isa_regs->ecx;
         int size = isa_regs->edx;
+        char* buf;
+        buf = calloc(1, size);
+        mem_read(isa_mem, addr, size, buf);
         return write_call(num, buf, size, get_pid());
         break;
     }
@@ -864,9 +871,13 @@ int handle_guest_syscalls() {
     }
     case syscall_code_open_file:
     {
-        char * path = (char *) isa_regs->ebx;
+        uint32_t addr = isa_regs->ebx;
         int mode = isa_regs->ecx;
-        return open_call(path, mode, get_pid(), isa_ctx->uid);
+        char* buf;
+        buf = calloc(1, 500);
+        mem_read(isa_mem, addr, 500, buf);
+        printf("%s - File Opening\n", buf);
+        return open_call(buf, mode, get_pid(), isa_ctx->uid);
         break;
     }
     case syscall_code_close_file:
@@ -877,13 +888,20 @@ int handle_guest_syscalls() {
     }
     case syscall_code_create_directory:
     {
-        char * path = (char *) isa_regs->ebx;
-        return create_directory(path, isa_ctx->uid);
+        uint32_t addr = isa_regs->ebx;
+        char* buf;
+        buf = calloc(1, 500);
+        mem_read(isa_mem, addr, 500, buf);
+        printf("%s - Directory Creation\n", buf);
+        return create_directory(buf, isa_ctx->uid);
     }
     case syscall_code_remove_file:
     {
-        char * path = (char *) isa_regs->ebx;
-        return remove_call(path, isa_ctx->uid);
+        uint32_t addr = isa_regs->ebx;
+        char* buf;
+        buf = calloc(1, 500);
+        mem_read(isa_mem, addr, 500, buf);
+        return remove_call(buf, isa_ctx->uid);
     }
     default:
         if (syscode >= syscall_code_count) {
