@@ -11,6 +11,26 @@ int main(){
 	syscall(405, file, "hello", 6);
 	syscall(403, file);
 
+	file = syscall(402, "root/d1/f2", 'w');
+	syscall(405, file, "hello", 6);
+	syscall(403, file);
+
+	file = syscall(402, "root/d1/f3", 'w');
+	syscall(405, file, "hello", 6);
+	syscall(403, file);
+
+	file = syscall(402, "root/d1/f4", 'w');
+	syscall(405, file, "hello", 6);
+	syscall(403, file);
+
+	file = syscall(402, "root/d2/f5", 'w');
+	syscall(405, file, "hello", 6);
+	syscall(403, file);
+
+	file = syscall(402, "root/d4/f6", 'w');
+	syscall(405, file, "hello", 6);
+	syscall(403, file);
+
 	cout<< "WRITE DONE\n";
 	file = syscall(402, "root/d1/f1", 'r');
 	char data[500];

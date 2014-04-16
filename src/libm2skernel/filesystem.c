@@ -52,7 +52,6 @@ void init_super_block(){
 
 	super_block.size = size/4096 + 1;
 	super_block.free_block_count = super_block.size;
-	init_cache() ;
 	write_super_block();
 
 }
@@ -490,8 +489,8 @@ uint32_t get_block_address(FCB * file_fcb, int block_number){
 }
 
 void seek_file(FCB * file_fcb, int size){
-	int start_block = file_fcb->seek_block;
-	int byte_offset = file_fcb->seek_offset;
+	// int start_block = file_fcb->seek_block;
+	// int byte_offset = file_fcb->seek_offset;
 	// uint32_t block_address = file_fcb->seek_block_addr;
 
 	if(size <= file_fcb->file_size){
@@ -687,7 +686,7 @@ void update_directory_trace(FCB * file){
 		write_file(parent, sizeof(FCB), (char*)file);
 		printf("%d FILE SIZE AT CLOSE %d\n", file->file_size, file->location);
 		seek_file(parent, file->location);
-		
+
 		FCB* temp = (FCB*)malloc(sizeof(FCB));
 		temp = (FCB*) read_file(parent, sizeof(FCB));
 		printf("%s %d HERE IT IS\n", temp->path, temp->file_size);
@@ -785,7 +784,7 @@ void * read_block_from_cache(uint32_t physical_address) {
 	}
 
 	if(cur != NULL){
-		if(cur->prev != NULL){
+		if(cur->prev != NULL && cur->next != NULL){
 			cur->prev->next = cur->next ;
 			cur->next->prev = cur->prev ;
 			disk_cache.tail->next = cur ;
@@ -793,7 +792,7 @@ void * read_block_from_cache(uint32_t physical_address) {
 			cur->next = NULL ;
 			disk_cache.tail = cur ;
 		}
-		else{
+		else if(cur->next!= NULL){
 			disk_cache.head = cur->next ;
 			cur->next->prev = cur->prev ;
 			disk_cache.tail->next = cur ;
@@ -807,11 +806,8 @@ void * read_block_from_cache(uint32_t physical_address) {
 		remove_entry() ;
 		cache_entry * new_entry = disk_cache.head ;
 		new_entry->physical_address = physical_address ;
-		new_entry->block_data = read_block(physical_address) ;
-		/*for(i = 0 ; i < super_block.block_size ; i++){
-			new_entry->block_data[i] = data[i] ;
-		}*/
-		//delete(data) ;
+		memcpy(new_entry->block_data, read_block(physical_address), super_block.block_size);
+
 		disk_cache.head = new_entry->next ;
 		new_entry->prev = disk_cache.tail ;
 		disk_cache.tail->next = new_entry ;
@@ -823,6 +819,7 @@ void * read_block_from_cache(uint32_t physical_address) {
 }
 
 void init_cache(){
+	printf("Cache Initialized\n");
 	cache_entry * head;
 	head = malloc(sizeof(cache_entry)) ;
 	head->physical_address = -1 ;
@@ -841,6 +838,7 @@ void init_cache(){
 		new_entry->prev = disk_cache.tail ;
 		new_entry->dirty_bit = 0 ;
 		new_entry->next = NULL ;
+		disk_cache.tail->next = new_entry ;
 		disk_cache.tail = new_entry ;
 	}
 
@@ -869,13 +867,10 @@ void write_block_to_cache(uint32_t physical_address ,char * data ){
 	}
 
 	if(cur != NULL){
-		//int i  = 0 ;
-		/*for(i = 0 ; i < strlen(data) ; i++){
-			cur->block_data[i] = data[i] ;
-		}*/
-		cur->block_data = (void*) data ;
+
+		memcpy(cur->block_data, data, super_block.block_size);
 		cur->dirty_bit = 1 ;
-		if(cur->prev != NULL){
+		if(cur->prev != NULL & cur->next != NULL){
 			cur->prev->next = cur->next ;
 			cur->next->prev = cur->prev ;
 			disk_cache.tail->next = cur ;
@@ -883,7 +878,7 @@ void write_block_to_cache(uint32_t physical_address ,char * data ){
 			cur->next = NULL ;
 			disk_cache.tail = cur ;
 		}
-		else{
+		else if(cur->next != NULL){
 			disk_cache.head = cur->next ;
 			cur->next->prev = cur->prev ;
 			disk_cache.tail->next = cur ;
@@ -897,11 +892,8 @@ void write_block_to_cache(uint32_t physical_address ,char * data ){
 		remove_entry() ;
 		cache_entry * new_entry = disk_cache.head ;
 		new_entry->physical_address = physical_address ;
-		/*int i ;
-		for(i = 0 ; i < super_block.block_size ; i++){
-			new_entry->block_data[i] = data[i] ;
-		}*/
-		cur->block_data = (void*) data ;
+
+		memcpy(cur->block_data, data, super_block.block_size);
 		disk_cache.head = new_entry->next ;
 		new_entry->prev = disk_cache.tail ;
 		disk_cache.tail->next = new_entry ;

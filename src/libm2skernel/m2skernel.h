@@ -790,6 +790,7 @@ int seek_call(int num, int size, int pid);
 int tell_call(int num, int pid);
 int create_directory(char * path, int uid);
 int remove_call(char * path, int uid);
+void update_directory_trace(FCB * file);
 
 
 //disk_cache functions 
