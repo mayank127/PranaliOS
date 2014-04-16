@@ -470,12 +470,13 @@ int fdt_get_guest_fd(struct fdt_t *fdt, int host_fd);
 extern int ctx_debug_category;
 
 struct ctx_t {
-	
+
 	/* Context properties */
 	int status;
 	int pid;  /* Context id */
 	int mid;  /* Memory id - the same for contexts sharing memory map */
 	struct ctx_t *parent;
+	char path[10] = "root";
 	int exit_signal;  /* Signal to send parent when finished */
 	int exit_code;  /* For zombie processes */
 	uint32_t backup_eip;  /* Saved eip when in specmode */

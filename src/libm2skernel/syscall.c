@@ -900,6 +900,48 @@ int handle_guest_syscalls() {
         mem_read(isa_mem, addr, 500, buf);
         return remove_call(buf, isa_ctx->uid);
     }
+    case syscall_code_change_directory
+    {
+        uint32_t addr = isa_regs->ebx;
+        char* buf;
+        buf = calloc(1, 500);
+        mem_read(isa_mem, addr, 500, buf);
+
+        // check if no path is set currently
+        if (strcmp(buf, "root")) {
+            strcpy(isa_ctx->path, buf);
+        }
+        else {
+            char * temp;
+            strncpy(temp, buf, 5);
+            if (strcmp(temp, "root/")) {
+                FCB * dir = search_file_or_directory(buf);
+                if (dir==NULL) {
+                    fatal("Change Directory : Invalid Path");
+                }
+                if (dir->type==1) {
+                    fatal("Change Directory : Target path is not a directory");
+                }
+                strcpy(isa_ctx->path, buf);
+                printf("Directory changed to : %s\n",isa_ctx->path);
+            }
+            else {
+                char * path;
+                strcpy(path, isa_ctx->path);
+                strcat(path, "/");
+                strcat(path, buf);
+                FCB * dir = search_file_or_directory(path);
+                if (dir==NULL) {
+                    fatal("Change Directory : Invalid Path");
+                }
+                if (dir->type==1) {
+                    fatal("Change Directory : Target path is not a directory");
+                }
+                strcpy(isa_ctx->path, path);
+                printf("Directory changed to : %s\n",isa_ctx->path);
+            }
+        }
+    }
     default:
         if (syscode >= syscall_code_count) {
             retval = -38;
