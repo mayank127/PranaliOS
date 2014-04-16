@@ -731,6 +731,8 @@ typedef struct cache_entry_list{
 	struct cache_entry * tail ;
 } cache_entry_list;
 
+cache_entry_list disk_cache ;
+
 typedef struct int_list
 {
 	int num;
@@ -791,6 +793,8 @@ int remove_call(char * path, int uid);
 //disk_cache functions 
 void remove_entry() ;
 void * read_block_from_cache(uint32_t physical_address) ;
-void update_directory_trace(FCB* file);
+void init_cache() ;
+void clear_cache() ;
+void write_block_to_cache(uint32_t physical_address ,char * data ) ;
 #endif
 

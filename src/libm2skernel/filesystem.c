@@ -52,6 +52,7 @@ void init_super_block(){
 
 	super_block.size = size/4096 + 1;
 	super_block.free_block_count = super_block.size;
+	init_cache() ;
 	write_super_block();
 
 }
@@ -218,8 +219,10 @@ struct FCB * search_in_directory(struct FCB * directory, char * name) {
 struct FCB * search_file_or_directory(char * p) {
 	char path[500];
 	strcpy(path, p);
-	if (strcmp(path,"root")==0)
+	if (strcmp(path,"root")==0){
+		printf("\nsearching\n");
 		return &(super_block.FCB_root);
+	}
 	else {
 		char * name;
 		name = strtok(path,"/");
@@ -420,7 +423,7 @@ char * read_file(FCB * file_fcb, int size){
 		int num_blocks = (byte_offset + size)/super_block.block_size;
 
 		if(num_blocks == 0){
-			read_buff = read_block(block_address);
+			read_buff = read_block_from_cache(block_address);
 			int i = 0;
 			for(i = 0; i < size; i++){
 				return_buff[j] = read_buff[byte_offset + i];
@@ -430,7 +433,7 @@ char * read_file(FCB * file_fcb, int size){
 			file_fcb->seek_offset = byte_offset;
 		}
 		else{
-			read_buff = read_block(block_address);
+			read_buff = read_block_from_cache(block_address);
 			int i = 0;
 			for(i = byte_offset; i < super_block.block_size; i++){
 				return_buff[j] = read_buff[i];
@@ -441,7 +444,7 @@ char * read_file(FCB * file_fcb, int size){
 			for(i = 1; i <= num_blocks - 1; i++){
 				block_address = get_block_address(file_fcb, start_block);
 				start_block++;
-				read_buff = read_block(block_address);
+				read_buff = read_block_from_cache(block_address);
 				int k = 0;
 				for(k = 0; k < super_block.block_size; k++){
 					return_buff[j] = read_buff[k];
@@ -450,7 +453,7 @@ char * read_file(FCB * file_fcb, int size){
 			}
 
 			block_address = get_block_address(file_fcb, start_block);
-			read_buff = read_block(block_address);
+			read_buff = read_block_from_cache(block_address);
 			int k = 0;
 			for(k = 0; j < size; k++){
 				return_buff[j] = read_buff[k];
@@ -472,12 +475,12 @@ uint32_t get_block_address(FCB * file_fcb, int block_number){
 		return file_fcb->block_address[block_number];
 	}
 	else if(block_number <= 11 + 1024){
-		uint32_t * address_buff = (uint32_t *) read_block(file_fcb->block_address[12]);
+		uint32_t * address_buff = (uint32_t *) read_block_from_cache(file_fcb->block_address[12]);
 		return address_buff[block_number - 12];
 	}
 	else if(block_number <= 11 + 1024 + 1024 * 1024){
-		uint32_t * address_buff = (uint32_t *) read_block(file_fcb->block_address[13]);
-		uint32_t * address_buff_level2 = (uint32_t *) read_block(address_buff[(block_number - 11 - 1024) / 1024]);
+		uint32_t * address_buff = (uint32_t *) read_block_from_cache(file_fcb->block_address[13]);
+		uint32_t * address_buff_level2 = (uint32_t *) read_block_from_cache(address_buff[(block_number - 11 - 1024) / 1024]);
 		return address_buff_level2[(block_number - 11 - 1024) % 1024];
 	}
 	else{
@@ -520,14 +523,14 @@ void write_file(FCB * file_fcb, int size, char * data){
 		block_address = allocate_block(file_fcb, start_block);
 	}
 	if(num_blocks == 1){
-		write_buff = read_block(block_address);
+		write_buff = read_block_from_cache(block_address);
 		int i = 0;
 		for(i = byte_offset; j < size; i++){
 			write_buff[i] = data[j];
 			j++;
 		}
 		file_fcb->seek_offset = byte_offset + size;
-		write_block(block_address, write_buff);
+		write_block_to_cache(block_address, write_buff);
 		if(file_fcb->seek_offset == super_block.block_size){
 			file_fcb->seek_offset = 0;
 			file_fcb->seek_block += 1;
@@ -538,7 +541,7 @@ void write_file(FCB * file_fcb, int size, char * data){
 		for(i = 0; i < num_blocks; i++){
 			if(start_block < total_num_blocks){
 				if(0 == i){
-					write_buff = read_block(block_address);
+					write_buff = read_block_from_cache(block_address);
 					int k = 0;
 					for(k = byte_offset; k < super_block.block_size; k++){
 						write_buff[k] = data[j];
@@ -565,7 +568,7 @@ void write_file(FCB * file_fcb, int size, char * data){
 						j++;
 					}
 				}
-				write_block(block_address, write_buff);
+				write_block_to_cache(block_address, write_buff);
 				start_block += 1;
 				block_address = get_block_address(file_fcb, start_block);
 			}
@@ -741,9 +744,12 @@ int tell_call(int num, int pid){
 }
 
 int create_directory(char * path, int uid){
-	if(search_file_or_directory(path) == NULL)
+	printf("\nhere\n");
+	if(search_file_or_directory(path) == NULL){
+		printf("\nhere1\n");
 		if(create_file(path, 0, uid) != NULL)
 			return 1;
+	}
 	printf("Already exists\n");
 	return -1;
 }
@@ -757,21 +763,20 @@ int remove_call(char * path, int uid){
 }
 // disk_cache functions
 
-/*void remove_entry(){
-	if(cache_entry_list != NULL){
-		cache_entry * cur_head = cache_entry_list->head ;
-		if(cur_head != NULL && cur_head->physical_address != -1){
-			if(cur_head->dirty_bit == 1){
-				write_block(cur_head->physical_address , (char*) cur_head->block_data) ;
-			}
-			cur_head->physical_address = -1 ;
 
+void remove_entry(){
+	cache_entry * cur_head = disk_cache.head ;
+	if(cur_head != NULL && cur_head->physical_address != -1){
+		if(cur_head->dirty_bit == 1){
+			write_block(cur_head->physical_address , (char*) cur_head->block_data) ;
 		}
+		cur_head->physical_address = -1 ;
+
 	}
 }
 
 void * read_block_from_cache(uint32_t physical_address) {
-	cache_entry * cur = cache_entry_list->head ;
+	cache_entry * cur = disk_cache.head ;
 	while(cur != NULL){
 		if(cur->physical_address == physical_address){
 			break ;
@@ -780,23 +785,129 @@ void * read_block_from_cache(uint32_t physical_address) {
 	}
 
 	if(cur != NULL){
+		if(cur->prev != NULL){
+			cur->prev->next = cur->next ;
+			cur->next->prev = cur->prev ;
+			disk_cache.tail->next = cur ;
+			cur->prev = disk_cache.tail ;
+			cur->next = NULL ;
+			disk_cache.tail = cur ;
+		}
+		else{
+			disk_cache.head = cur->next ;
+			cur->next->prev = cur->prev ;
+			disk_cache.tail->next = cur ;
+			cur->prev = disk_cache.tail ;
+			cur->next = NULL ;
+			disk_cache.tail = cur ;
+		}
 		return cur->block_data ;
 	}
 	else{
 		remove_entry() ;
-		cache_entry * new_entry = cache_entry_list->head ;
+		cache_entry * new_entry = disk_cache.head ;
 		new_entry->physical_address = physical_address ;
-		void * data = read_block(physical_address) ;
-		int i ;
+		new_entry->block_data = read_block(physical_address) ;
+		/*for(i = 0 ; i < super_block.block_size ; i++){
+			new_entry->block_data[i] = data[i] ;
+		}*/
+		//delete(data) ;
+		disk_cache.head = new_entry->next ;
+		new_entry->prev = disk_cache.tail ;
+		disk_cache.tail->next = new_entry ;
+		new_entry->next = NULL;
+		disk_cache.head->prev = NULL ;
+		disk_cache.tail = new_entry ;
+		return disk_cache.tail->block_data ;
+	}
+}
+
+void init_cache(){
+	cache_entry * head;
+	head = malloc(sizeof(cache_entry)) ;
+	head->physical_address = -1 ;
+	head->block_data = malloc(4*1024) ;
+	head->dirty_bit = 0 ;
+	head->prev = NULL ;
+	head->next = NULL ;
+	disk_cache.head = head ;
+	disk_cache.tail = head ;
+	int i = 0;
+	for(i = 0; i < 15 ; i++){
+		cache_entry * new_entry ;
+		new_entry = malloc(sizeof(cache_entry)) ;
+		new_entry->physical_address = -1 ;
+		new_entry->block_data = malloc(4*1024) ;
+		new_entry->prev = disk_cache.tail ;
+		new_entry->dirty_bit = 0 ;
+		new_entry->next = NULL ;
+		disk_cache.tail = new_entry ;
+	}
+
+}
+
+void clear_cache(){
+	cache_entry * cur = disk_cache.head ;
+	while(cur != NULL){
+		if(cur->dirty_bit == 1 && cur->physical_address != -1){
+			write_block(cur->physical_address , (char*) cur->block_data) ;
+			cur->dirty_bit = 0;
+		}
+		cur->physical_address = -1 ;
+		cur = cur->next ;
+	}
+}
+
+void write_block_to_cache(uint32_t physical_address ,char * data ){
+
+	cache_entry * cur = disk_cache.head ;
+	while(cur != NULL){
+		if(cur->physical_address == physical_address){
+			break ;
+		}
+		cur = cur->next ;
+	}
+
+	if(cur != NULL){
+		//int i  = 0 ;
+		/*for(i = 0 ; i < strlen(data) ; i++){
+			cur->block_data[i] = data[i] ;
+		}*/
+		cur->block_data = (void*) data ;
+		cur->dirty_bit = 1 ;
+		if(cur->prev != NULL){
+			cur->prev->next = cur->next ;
+			cur->next->prev = cur->prev ;
+			disk_cache.tail->next = cur ;
+			cur->prev = disk_cache.tail ;
+			cur->next = NULL ;
+			disk_cache.tail = cur ;
+		}
+		else{
+			disk_cache.head = cur->next ;
+			cur->next->prev = cur->prev ;
+			disk_cache.tail->next = cur ;
+			cur->prev = disk_cache.tail ;
+			cur->next = NULL ;
+			disk_cache.tail = cur ;
+		}
+
+	}
+	else {
+		remove_entry() ;
+		cache_entry * new_entry = disk_cache.head ;
+		new_entry->physical_address = physical_address ;
+		/*int i ;
 		for(i = 0 ; i < super_block.block_size ; i++){
 			new_entry->block_data[i] = data[i] ;
-		}
-		delete(data) ;
-		cache_entry_list->head = new_entry->next ;
-		new_entry->prev = cache_entry_list->tail ;
-		cache_entry_list->tail->next = new_entry ;
+		}*/
+		cur->block_data = (void*) data ;
+		disk_cache.head = new_entry->next ;
+		new_entry->prev = disk_cache.tail ;
+		disk_cache.tail->next = new_entry ;
 		new_entry->next = NULL;
-		cache_entry_list->head->prev = NULL ;
-		cache_entry_list->tail = new_entry ;
+		disk_cache.head->prev = NULL ;
+		disk_cache.tail = new_entry ;
+		disk_cache.tail->dirty_bit = 1 ;
 	}
-}*/
+}
