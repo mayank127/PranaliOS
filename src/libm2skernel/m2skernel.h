@@ -689,6 +689,7 @@ typedef struct FCB {
 	int uid;
 	int type; // 0 for directory, 1 for file
 	uint32_t block_address[15];
+	int protection; // 0 for no access, 1 for read permission, 2 for write permission
 
 	//seek pointer
 	int seek_block;	// init with 0

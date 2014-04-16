@@ -917,13 +917,15 @@ int handle_guest_syscalls() {
             if (strcmp(temp, "root/")) {
                 FCB * dir = search_file_or_directory(buf);
                 if (dir==NULL) {
-                    fatal("Change Directory : Invalid Path");
+                    printf("Change Directory : Invalid Path");
                 }
-                if (dir->type==1) {
-                    fatal("Change Directory : Target path is not a directory");
+                else if (dir->type==1) {
+                    print("Change Directory : Target path is not a directory");
                 }
-                strcpy(isa_ctx->path, buf);
-                printf("Directory changed to : %s\n",isa_ctx->path);
+                else {
+                    strcpy(isa_ctx->path, buf);
+                    printf("Directory changed to : %s\n",isa_ctx->path);
+                }
             }
             else {
                 char * path;
@@ -932,13 +934,15 @@ int handle_guest_syscalls() {
                 strcat(path, buf);
                 FCB * dir = search_file_or_directory(path);
                 if (dir==NULL) {
-                    fatal("Change Directory : Invalid Path");
+                    printf("Change Directory : Invalid Path");
                 }
-                if (dir->type==1) {
-                    fatal("Change Directory : Target path is not a directory");
+                else if (dir->type==1) {
+                    printf("Change Directory : Target path is not a directory");
                 }
-                strcpy(isa_ctx->path, path);
-                printf("Directory changed to : %s\n",isa_ctx->path);
+                else {
+                    strcpy(isa_ctx->path, path);
+                    printf("Directory changed to : %s\n",isa_ctx->path);
+                }
             }
         }
     }
