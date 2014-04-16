@@ -180,6 +180,7 @@ void set_defaults(void) {
     if(check != NULL){
         disk_file_pointer = fopen("Sim_disk", "rb+");
         read_super_block();
+        init_cache();
         fclose(check);
     }
     else{
@@ -195,8 +196,8 @@ void set_defaults(void) {
                 heads, tracks, sectors);
         system(command);
         disk_file_pointer = fopen("Sim_disk", "rb+");
-
         init_super_block();
+        init_cache();
     }
 }
 
@@ -340,6 +341,7 @@ int main(int argc, char **argv) {
     }
 
     /* Finalization */
+    clear_cache();
     ke_done();
     ///opt_done();
     ///debug_done();
