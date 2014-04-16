@@ -5,7 +5,6 @@ SuperBlock super_block;
 
 
 void * read_block(int file_block_number){
-
 	void * read_buffer ;
 	size_t number_of_byte_read;
 	read_buffer = calloc(1, super_block.block_size) ;
@@ -19,16 +18,12 @@ void * read_block(int file_block_number){
 		fatal("read error");
 	}
 	return read_buffer ;
-
 }
 
-
 void write_block(int file_block_number, void * buffer){
-
 	if(file_block_number >= total_blocks_virtual_mem){
 		fatal("read_block : block number out of range");
 	}
-
 	fseek(disk_file_pointer, file_block_number*4096, SEEK_SET);
 	fwrite(buffer, 1, super_block.block_size, disk_file_pointer);
 }
@@ -53,7 +48,6 @@ void init_super_block(){
 	super_block.size = size/4096 + 1;
 	super_block.free_block_count = super_block.size;
 	write_super_block();
-
 }
 
 void read_super_block(){
@@ -129,7 +123,6 @@ void write_super_block(){
 	fwrite(disk_block_data, sizeof(total_blocks_virtual_mem * sizeof(int)), 1, disk_file_pointer);
 }
 
-
 int list_size(int_list* l){
 	int size = 0;
 	while(l != NULL){
@@ -171,6 +164,7 @@ void add_free_block(int block_num){
 	temp->next = super_block.free_block_pointer;
 	super_block.free_block_pointer = temp;
 }
+
 void add_free_FCB(int fcb){
 	int_list * temp = (int_list*) (malloc(sizeof(int_list)));
 	temp->num = fcb;
@@ -197,10 +191,14 @@ void update_time_stamps(struct FCB * file, int mask) {
 }
 
 // search for file name in directory
-struct FCB * search_in_directory(struct FCB * directory, char * name) {
+struct FCB * search_in_directory(struct FCB * directory, char * name, int uid) {
+	if (directory->uid!=uid && directory->permission==0) {
+		printf("Search in directory : Not enough permission\n");
+		return NULL;
+	}
+	update_time_stamps(directory, 3);
 	int number_of_entries = directory->file_size / sizeof(struct FCB);
 	printf("%s %s, %d %d\n", name, directory->path, directory->file_size, number_of_entries);
-
 	int i = 0;
 	for (i=0;i<number_of_entries;i++) {
 		struct FCB * temp = (struct FCB *) malloc (sizeof(struct FCB));
@@ -215,20 +213,24 @@ struct FCB * search_in_directory(struct FCB * directory, char * name) {
 }
 
 // search file
-struct FCB * search_file_or_directory(char * p) {
+struct FCB * search_file_or_directory(char * p, int uid) {
 	char path[500];
 	strcpy(path, p);
 	if (strcmp(path,"root")==0){
 		printf("\nsearching\n");
+		update_time_stamps(super_block.FCB_root, 3);
 		return &(super_block.FCB_root);
 	}
 	else {
 		char * name;
 		name = strtok(path,"/");
-		struct FCB * temp = search_file_or_directory(name);
+		struct FCB * temp = search_file_or_directory(name, uid);
 		if (temp==NULL) {
-			// error root not found
-			printf("aa\n");
+			printf("Search file or directory : File not found\n");
+			return NULL;
+		}
+		else if (temp->uid!=uid && temp->permission==0) {
+			printf("Search file or directory : Not enough permission\n");
 			return NULL;
 		}
 		name = strtok(NULL,"/");
@@ -239,7 +241,8 @@ struct FCB * search_file_or_directory(char * p) {
 			printf("bb\n");
 				return NULL;
 			}
-			temp = search_in_directory(temp,name);
+			if (temp)
+			temp = search_in_directory(temp, name, uid);
 			if (temp==NULL) {
 				// error couldn't find file
 				printf("cc\n");
@@ -251,27 +254,31 @@ struct FCB * search_file_or_directory(char * p) {
 	}
 }
 
-struct FCB * get_parent_directory(char * p) {
+struct FCB * get_parent_directory(char * p, int uid) {
 	char path[500];
 	strcpy(path, p);
 	if(strcmp(path,"root")==0) {
-		// error no parent exists for root directory
+		printf("Get parent directory : No parent for root\n");
+		return NULL;
 	}
 	char * name;
 	name = strtok(path,"/");
 	struct FCB * parent = NULL;
-	struct FCB * temp = search_file_or_directory(name);
+	struct FCB * temp = search_file_or_directory(name, uid);
 	if (temp==NULL) {
-		// error root not found
+		printf("Search file or directory : File not found\n");
+		return NULL;
 	}
 	name = strtok(NULL,"/");
 	while (name!=NULL) {
 		if (temp->type==1) {
-			// error temp is not a directory
+			printf("Search file or directory : File not found\n");
+			return NULL;
 		}
-		struct FCB * cur_dir = search_in_directory(temp,name);
-		if (temp==NULL) {
-			// error couldn't find file
+		struct FCB * cur_dir = search_in_directory(temp, name, uid);
+		if (cur_dir==NULL) {
+			printf("Search file or directory : File not found\n");
+			return NULL;
 		}
 		parent = temp;
 		temp = cur_dir;
@@ -292,6 +299,7 @@ struct FCB * create_root_FCB() {
 	root->file_size = 0;
 	update_time_stamps(root,1);
 	root->uid = 0;
+	root->permission = 2;
 	root->type = 0;
 	root->seek_block = 0;
 	root->seek_block_addr = root->block_address[0];
@@ -307,15 +315,14 @@ FCB * create_file(char * p, int type, int uid) {
 		type = 0 :- directory creation
 		type = 1 :- file creation
 	*/
-
 	int i = 0;
 	int last = 0;
 	for(i = 0; i < strlen(p); i++){
 		if(p[i] == '/')
 			last = i;
 	}
-	char name[50];
-	char path[300];
+	char name[50]; // name of new file
+	char path[300]; // current directory
 	strcpy(name, p+last+1);
 	for(i=last+1; i<strlen(p); i++){
 		name[i-last-1] = p[i];
@@ -326,88 +333,112 @@ FCB * create_file(char * p, int type, int uid) {
 	}
 	path[i] = 0;
 	printf("%s %s %s %d\n", p, path, name, last);
+	struct FCB * cur_directory = search_file_or_directory(path, uid);
+	if (file->uid!=uid && file->permission!=2) {
+		printf("Create file : Not enough permission\n");
+		return NULL;
+	}
+	else {
+		struct FCB * new_file = (struct FCB *) (malloc(sizeof(struct FCB)));
+		new_file->index = get_free_FCB_index();
+		new_file->file_size = 0;
+		strcpy(new_file->name,name);
+		update_time_stamps(new_file,1);
+		new_file->uid = uid;
+		new_file->type = type;
+		new_file->seek_block = 0;
+		new_file->seek_block_addr = new_file->block_address[0];
+		new_file->seek_offset = 0;
+		new_file->location = cur_directory->file_size;
+		strcpy(new_file->path, path);
+		strcat(new_file->path, "/");
+		strcat(new_file->path, name);
 
-	struct FCB * cur_directory = search_file_or_directory(path);
-	struct FCB * new_file = (struct FCB *) (malloc(sizeof(struct FCB)));
-	new_file->index = get_free_FCB_index();
-	new_file->file_size = 0;
-	strcpy(new_file->name,name);
-	update_time_stamps(new_file,1);
-	new_file->uid = uid;
-	new_file->type = type;
-	new_file->seek_block = 0;
-	new_file->seek_block_addr = new_file->block_address[0];
-	new_file->seek_offset = 0;
-	new_file->location = cur_directory->file_size;
-	strcpy(new_file->path, path);
-	strcat(new_file->path, "/");
-	strcat(new_file->path, name);
-
-	seek_file(cur_directory, cur_directory->file_size);
-	write_file(cur_directory,sizeof(struct FCB),(char *)(new_file));
-	//cur_directory->file_size += sizeof(struct FCB);
-	update_time_stamps(cur_directory,2);
-	printf("%s %d AFTER CREATION\n", cur_directory->path, cur_directory->file_size);
-	update_directory_trace(cur_directory);
-	return new_file;
+		update_time_stamps(cur_directory,2);
+		seek_file(cur_directory, cur_directory->file_size);
+		write_file(cur_directory,sizeof(struct FCB),(char *)(new_file));
+		//cur_directory->file_size += sizeof(struct FCB);
+		printf("%s %d AFTER CREATION\n", cur_directory->path, cur_directory->file_size);
+		update_directory_trace(cur_directory);
+		return new_file;
+	}
 }
 
-void delete_file(char * p) {
+void delete_file(char * p, int uid) {
 	char path[500];
 	strcpy(path, p);
-	struct FCB * file = search_file_or_directory(path);
-	struct FCB * directory = get_parent_directory(path);
+	struct FCB * file = search_file_or_directory(path, uid);
+	struct FCB * directory = get_parent_directory(path, uid);
 	if (directory == NULL) {
-		// error file not found
+		printf("Search Directory : Search failed\n");
+		return;
 	}
-	if (directory->type != 1){
-		// error given path points to a file
+	else if (directory->type != 1){
+		printf("Search Directory : Parent directory is not a directory\n");
+		return;
 	}
-	int number_of_entries = directory->file_size/sizeof(struct FCB);
-	int i;
-	struct FCB_list cur_list;
-	cur_list.cur = (FCB *) read_file(directory, sizeof(struct FCB));
-	FCB_list * prev = &cur_list;
-	for (i=1; i<number_of_entries; i++){
-		FCB_list * next = malloc(sizeof(struct FCB_list));
-		next->cur = (FCB *) read_file(directory, sizeof(struct FCB));
-		prev->next = next;
-		prev = next;
+	else if (file->uid!=uid && file->permission!=2) {
+		printf("File Deletion : Not enough permission\n");
+		return;
 	}
-	prev->next = NULL;
-	truncate_file(directory);
-	struct FCB_list * itr = &cur_list;
-	while(itr->next != NULL){
-		if (strcmp(itr->cur->name, file->name) != 0){
-			itr->cur->location = directory->file_size;
-			seek_file(directory, directory->file_size);
-			write_file(directory,sizeof(struct FCB),(char *)(itr->cur));
+	else {
+		update_time_stamps(directory, 2);
+		int number_of_entries = directory->file_size/sizeof(struct FCB);
+		int i;
+		struct FCB_list cur_list;
+		cur_list.cur = (FCB *) read_file(directory, sizeof(struct FCB));
+		FCB_list * prev = &cur_list;
+		for (i=1; i<number_of_entries; i++){
+			FCB_list * next = malloc(sizeof(struct FCB_list));
+			next->cur = (FCB *) read_file(directory, sizeof(struct FCB));
+			prev->next = next;
+			prev = next;
 		}
+		prev->next = NULL;
+		truncate_file(directory);
+		struct FCB_list * itr = &cur_list;
+		while(itr->next != NULL){
+			if (strcmp(itr->cur->name, file->name) != 0){
+				itr->cur->location = directory->file_size;
+				seek_file(directory, directory->file_size);
+				write_file(directory,sizeof(struct FCB),(char *)(itr->cur));
+			}
+		}
+		truncate_file(file);
+		add_free_FCB(file->index);
+		printf("File deleted successfully : %s\n",file->path);
 	}
-	truncate_file(file);
-	add_free_FCB(file->index);
 }
 
 // remove a directory (recursively deleting all its contents)
-void remove_directory(char * path) {
-	struct FCB * cur_directory = search_file_or_directory(path);
-	if (cur_directory->type==0) {
+void remove_directory(char * p, int uid) {
+	char path[500];
+	strcpy(path, p);
+	struct FCB * cur_directory = search_file_or_directory(path, uid);
+	if (cur_directory!=NULL && cur_directory->type==0) {
 		// now first recursively delete all the contents
 		int number_of_entries = cur_directory->file_size/sizeof(struct FCB);
 		int i = 0;
+		int flag = 1;
 		for (i=0;i<number_of_entries;i++) {
 			struct FCB * temp = (struct FCB *) malloc (sizeof(struct FCB));
 			seek_file(cur_directory, i*sizeof(struct FCB));
 			temp = (struct FCB *)read_file(cur_directory, sizeof(struct FCB));
-			remove_directory(temp->path);
+			if (temp->uid==uid || temp->permission==2) {
+				remove_directory(temp->path, uid);
+			}
+			else {
+				flag = 0;
+			}
 		}
+		update_time_stamps(cur_directory, 2);
 	}
-	// now delete this FCB (can be a directory or file) [base case]
-	delete_file(path);
+	// now delete this FCB if allowed (can be a directory or file) [base case]
+	if (flag) delete_file(path, uid);
 }
 
-
 char * read_file(FCB * file_fcb, int size){
+	update_time_stamps(file_fcb, 3);
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
 	uint32_t block_address = file_fcb->seek_block_addr;
@@ -492,7 +523,7 @@ void seek_file(FCB * file_fcb, int size){
 	// int start_block = file_fcb->seek_block;
 	// int byte_offset = file_fcb->seek_offset;
 	// uint32_t block_address = file_fcb->seek_block_addr;
-
+	update_time_stamps(file_fcb, 3);
 	if(size <= file_fcb->file_size){
 		int num_blocks = size/super_block.block_size;
 		int offset = size%super_block.block_size;
@@ -509,7 +540,7 @@ void write_file(FCB * file_fcb, int size, char * data){
 	int start_block = file_fcb->seek_block;
 	int byte_offset = file_fcb->seek_offset;
 	uint32_t block_address = file_fcb->seek_block_addr;
-
+	update_time_stamps(file_fcb, 2);
 	int j = 0;
 
     int num_blocks = ceil((float)(byte_offset + size)/(float)super_block.block_size);
@@ -615,59 +646,98 @@ uint32_t allocate_block(FCB * file_fcb, int block_number){
 	return new_block_addr;
 }
 
-
 void truncate_file(FCB * file_fcb){
    if(file_fcb != NULL){
-       int number_of_blocks = ceil(file_fcb->file_size/super_block.block_size) ;
-       file_fcb->file_size = 0 ;
-       file_fcb->seek_offset = 0 ;
-    	file_fcb->seek_block = 0 ;
-       int i ;
-       for(i = 0 ; i < number_of_blocks ; i++){
-           uint32_t block_num =  get_block_address(file_fcb , i) ;
-           add_free_block(block_num) ;
-       }
+   		update_time_stamps(file_fcb, 2);
+		int number_of_blocks = ceil(file_fcb->file_size/super_block.block_size) ;
+		file_fcb->file_size = 0 ;
+		file_fcb->seek_offset = 0 ;
+		file_fcb->seek_block = 0 ;
+		int i ;
+		for(i = 0 ; i < number_of_blocks ; i++){
+			uint32_t block_num =  get_block_address(file_fcb , i) ;
+			add_free_block(block_num) ;
+		}
    }
 }
 
 ///Library Routines
-
-int open_call(char * path, int mode, int pid, int uid){
+int open_call(char * p, int mode, int pid, int uid){
+	char path[500];
+	strcpy(path, p);
 	int i = 0;
 	for(i=0; i<1024;i++){
 		if(oft_table[i].file_fcb == NULL){
 			oft_table[i].pid = pid;
 			oft_table[i].offset = 0;
 			oft_table[i].mode = mode;
+			if (isa_ctx->path==NULL) {
+				isa_ctx->path = malloc(10);
+				strcpy(isa_ctx->path, "root");
+			}
+			char name[10];
+			strncpy(name, path, 5);
+			if (strcmp(name, "root/")!=0) {
+				strcpy(name, isa_ctx->path);
+				strcat(name, "/");
+				strcat(name, path);
+				strcpy(path, name);
+			}
 			switch(mode){
 				case 'r':
-					oft_table[i].file_fcb = search_file_or_directory(path);
-					if(oft_table[i].file_fcb == NULL){
+					FCB * temp = search_file_or_directory(path, uid);
+					if (temp==NULL) {
+						printf("Search file : File doesn't exists\n");
 						return -1;
 					}
+					else if (temp->uid!=uid && temp->permission==0) {
+						printf("Open file for read : Not enough permission\n");
+						return -1;
+					}
+					else if (temp->type==0) {
+						printf("Open file for read : Not a file\n");
+						return -1;
+					}
+					oft_table[i].file_fcb == temp;
 					return i;
 				case 'a':
-					oft_table[i].file_fcb = search_file_or_directory(path);
-					if(oft_table[i].file_fcb == NULL){
-						oft_table[i].file_fcb = create_file(path, 1, uid);
-						if(oft_table[i].file_fcb == NULL){
+					FCB * temp = search_file_or_directory(path, uid);
+					if (temp==NULL) {
+						temp = create_file(path, 1, uid);
+						if (temp==NULL) {
 							return -1;
 						}
+						oft_table[i].file_fcb = temp;
 						return i;
 					}
-					oft_table[i].offset = oft_table[i].file_fcb->file_size;
-					return i;
+					else if (temp->uid!=uid && temp->permission!=2) {
+						printf("Open file for append : Not enough permission\n");
+						return -1;
+					}
+					else {
+						oft_table[i].file_fcb = temp;
+						oft_table[i].offset = oft_table[i].file_fcb->file_size;
+						return i;
+					}
 				case 'w':
-					oft_table[i].file_fcb = search_file_or_directory(path);
-					if(oft_table[i].file_fcb == NULL){
-						oft_table[i].file_fcb = create_file(path, 1, uid);
-						if(oft_table[i].file_fcb == NULL){
+					FCB * temp = search_file_or_directory(path, uid);
+					if (temp==NULL) {
+						temp = create_file(path, 1, uid);
+						if (temp==NULL) {
 							return -1;
 						}
+						oft_table[i].file_fcb = temp;
 						return i;
 					}
-					truncate_file(oft_table[i].file_fcb);
-					return i;
+					else if (temp->uid!=uid && temp->permission!=2) {
+						printf("Open file for write : Not enough permission\n");
+						return -1;
+					}
+					else {
+						oft_table[i].file_fcb = temp;
+						truncate_file(oft_table[i].file_fcb);
+						return i;
+					}
 				default:
 					return -1;
 			}
@@ -682,6 +752,7 @@ void update_directory_trace(FCB * file){
 	}
 	else{
 		FCB * parent = get_parent_directory(file->path);
+		update_time_stamps(parent, 2);
 		seek_file(parent, file->location);
 		write_file(parent, sizeof(FCB), (char*)file);
 		printf("%d FILE SIZE AT CLOSE %d\n", file->file_size, file->location);
@@ -700,6 +771,7 @@ int close_call(int num, int pid){
 		oft_table[num].file_fcb = NULL;
 		return 1;
 	}
+	printf("Close call : File not opened\n");
 	return -1;
 }
 
@@ -714,6 +786,7 @@ int read_call(int num, char * buf, int size, int pid){
 		oft_table[num].offset += size;
 		return 1;
 	}
+	printf("Read call : File not opened\n");
 	return -1;
 }
 
@@ -724,6 +797,7 @@ int write_call(int num, char * buf, int size, int pid){
 		oft_table[num].offset += size;
 		return 1;
 	}
+	printf("Write call : File not opened\n");
 	return -1;
 }
 
@@ -732,6 +806,7 @@ int seek_call(int num, int size, int pid){
 		oft_table[num].offset = size;
 		return 1;
 	}
+	printf("Seek call : File not opened\n");
 	return -1;
 }
 
@@ -739,30 +814,74 @@ int tell_call(int num, int pid){
 	if(oft_table[num].pid == pid && oft_table[num].file_fcb != NULL){
 		return oft_table[num].offset;
 	}
+	printf("Tell call : File not opened\n");
 	return -1;
 }
 
-int create_directory(char * path, int uid){
-	printf("\nhere\n");
-	if(search_file_or_directory(path) == NULL){
-		printf("\nhere1\n");
+int create_directory(char * p, int uid){
+	char path[500];
+	strcpy(path, p);
+	if (isa_ctx->path==NULL) {
+		isa_ctx->path = malloc(10);
+		strcpy(isa_ctx->path, "root");
+	}
+	char name[10];
+	strncpy(name, path, 5);
+	if (strcmp(name, "root/")!=0) {
+		strcpy(name, isa_ctx->path);
+		strcat(name, "/");
+		strcat(name, path);
+		strcpy(path, name);
+	}
+	if(search_file_or_directory(path, uid) == NULL){
 		if(create_file(path, 0, uid) != NULL)
 			return 1;
+		else {
+			printf("Create Directory : File creation failed\n");
+			return -1;
+		}
 	}
-	printf("Already exists\n");
+	else {
+		printf("Create Directory : Already exists\n");
+		return -1;
+	}
 	return -1;
 }
 
-int remove_call(char * path, int uid){
-	if(search_file_or_directory(path)){
-		remove_directory(path);
-		return 1;
+int remove_call(char * p, int uid){
+	char path[500];
+	strcpy(path, p);
+	if (strcmp(path, "root")==0) {
+		printf("Trying to delete root : I dare ya\n");
+		return -1;
+	}
+	if (isa_ctx->path==NULL) {
+		isa_ctx->path = malloc(10);
+		strcpy(isa_ctx->path, "root");
+	}
+	char name[10];
+	strncpy(name, path, 5);
+	if (strcmp(name, "root/")!=0) {
+		strcpy(name, isa_ctx->path);
+		strcat(name, "/");
+		strcat(name, path);
+		strcpy(path, name);
+	}
+	FCB * file = search_file_or_directory(path, uid);
+	if(file!=NULL){
+		if (uid==file->uid || file->permission==2) {
+			remove_directory(path, uid);
+			return 1;
+		}
+		else {
+			printf("Remove Directory : Not enough permission\n");
+			return -1;
+		}
 	}
 	return -1;
 }
+
 // disk_cache functions
-
-
 void remove_entry(){
 	cache_entry * cur_head = disk_cache.head ;
 	if(cur_head != NULL && cur_head->physical_address != -1){
@@ -841,7 +960,6 @@ void init_cache(){
 		disk_cache.tail->next = new_entry ;
 		disk_cache.tail = new_entry ;
 	}
-
 }
 
 void clear_cache(){

@@ -900,7 +900,7 @@ int handle_guest_syscalls() {
         mem_read(isa_mem, addr, 500, buf);
         return remove_call(buf, isa_ctx->uid);
     }
-    case syscall_code_change_directory
+    case syscall_code_change_directory:
     {
         uint32_t addr = isa_regs->ebx;
         char* buf;
@@ -908,19 +908,23 @@ int handle_guest_syscalls() {
         mem_read(isa_mem, addr, 500, buf);
 
         // check if no path is set currently
-        if (strcmp(buf, "root")) {
+        if (isa_ctx->path==NULL) {
+            isa_ctx->path = malloc(10);
+            strcpy(isa_ctx->path, "root");
+        }
+        if (strcmp(buf, "root")==0) {
             strcpy(isa_ctx->path, buf);
         }
         else {
-            char * temp;
+            char * temp = malloc(10);
             strncpy(temp, buf, 5);
-            if (strcmp(temp, "root/")) {
+            if (strcmp(temp, "root/")==0) {
                 FCB * dir = search_file_or_directory(buf);
                 if (dir==NULL) {
-                    printf("Change Directory : Invalid Path");
+                    printf("Change Directory : Invalid Path\n");
                 }
                 else if (dir->type==1) {
-                    print("Change Directory : Target path is not a directory");
+                    print("Change Directory : Target path is not a directory\n");
                 }
                 else {
                     strcpy(isa_ctx->path, buf);
@@ -928,16 +932,16 @@ int handle_guest_syscalls() {
                 }
             }
             else {
-                char * path;
+                char * path = malloc(500);
                 strcpy(path, isa_ctx->path);
                 strcat(path, "/");
                 strcat(path, buf);
                 FCB * dir = search_file_or_directory(path);
                 if (dir==NULL) {
-                    printf("Change Directory : Invalid Path");
+                    printf("Change Directory : Invalid Path\n");
                 }
                 else if (dir->type==1) {
-                    printf("Change Directory : Target path is not a directory");
+                    printf("Change Directory : Target path is not a directory\n");
                 }
                 else {
                     strcpy(isa_ctx->path, path);
@@ -945,6 +949,53 @@ int handle_guest_syscalls() {
                 }
             }
         }
+        break;
+    }
+    case syscall_code_change_permission:
+    {
+        uint32_t addr = isa_regs->ebx;
+        char* buf;
+        buf = calloc(1, 500);
+        mem_read(isa_mem, addr, 500, buf);
+
+        // check if owner is using the syscall
+        if (isa_ctx->path==NULL) {
+            isa_ctx->path = malloc(10);
+            strcpy(isa_ctx->path, "root");
+        }
+        char name[10];
+        strncpy(name, buf, 5);
+        if (strcmp(name, "root/")!=0) {
+            strcpy(name, isa_ctx->path);
+            strcat(name, "/");
+            strcat(name, buf);
+            strcpy(buf, name);
+        }
+        FCB * file = search_file_or_directory(buf);
+        if (file==NULL) {
+            printf("Change Permissions : File not found\n");
+        }
+        else if (file->uid != isa_ctx->uid) {
+            printf("Change Permissions : Not the owner\n");
+        }
+        else {
+            file->permission = isa_ctx->ecx;
+            update_time_stamps(file, 2);
+            switch(file->permission) {
+                case 0:
+                    printf("Permission changed : No access\n");
+                    break;
+                case 1:
+                    printf("Permission changed : Read access\n");
+                    break;
+                case 2:
+                    printf("Permission changed : Write access\n");
+                    break;
+                default:
+                    printf("Shouldn't reach here\n");
+            }
+        }
+        break;
     }
     default:
         if (syscode >= syscall_code_count) {

@@ -476,7 +476,7 @@ struct ctx_t {
 	int pid;  /* Context id */
 	int mid;  /* Memory id - the same for contexts sharing memory map */
 	struct ctx_t *parent;
-	char path[10] = "root";
+	char * path;
 	int exit_signal;  /* Signal to send parent when finished */
 	int exit_code;  /* For zombie processes */
 	uint32_t backup_eip;  /* Saved eip when in specmode */
@@ -689,7 +689,7 @@ typedef struct FCB {
 	int uid;
 	int type; // 0 for directory, 1 for file
 	uint32_t block_address[15];
-	int protection; // 0 for no access, 1 for read permission, 2 for write permission
+	int permission; // 0 for no access, 1 for read permission, 2 for write permission
 
 	//seek pointer
 	int seek_block;	// init with 0
@@ -773,13 +773,13 @@ uint32_t allocate_block(FCB * file_fcb, int block_number);
 
 
 void update_time_stamps(struct FCB * file, int mask);
-struct FCB * search_in_directory(struct FCB * directory, char * name);
-struct FCB * search_file_or_directory(char * path);
-struct FCB * get_parent_directory(char * path);
+struct FCB * search_in_directory(struct FCB * directory, char * name, int uid);
+struct FCB * search_file_or_directory(char * path, int uid);
+struct FCB * get_parent_directory(char * path, int uid);
 struct FCB * create_root_FCB();
 FCB * create_file(char * path, int type, int uid);
-void delete_file(char * path);
-void remove_directory(char * path);
+void delete_file(char * path, int uid);
+void remove_directory(char * path, int uid);
 void truncate_file(FCB * file_fcb);
 
 int open_call(char * path, int mode, int pid, int uid);
@@ -793,7 +793,7 @@ int remove_call(char * path, int uid);
 void update_directory_trace(FCB * file);
 
 
-//disk_cache functions 
+//disk_cache functions
 void remove_entry() ;
 void * read_block_from_cache(uint32_t physical_address) ;
 void init_cache() ;
