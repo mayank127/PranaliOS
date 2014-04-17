@@ -881,7 +881,7 @@ int handle_guest_syscalls() {
     case syscall_code_close_file:
     {
         int num = isa_regs->ebx;
-        return close_call(num, get_pid());
+        return close_call(num, get_pid(), isa_ctx->uid);
         break;
     }
     case syscall_code_create_directory:
@@ -918,13 +918,13 @@ int handle_guest_syscalls() {
         else {
             char * temp = malloc(10);
             strncpy(temp, buf, 5);
-            if (strcmp(temp, "root/")==0) {
-                FCB * dir = search_file_or_directory(buf);
+            if (strncmp(temp, "root/", 5)==0) {
+                FCB * dir = search_file_or_directory(buf, isa_ctx->uid);
                 if (dir==NULL) {
                     printf("Change Directory : Invalid Path\n");
                 }
                 else if (dir->type==1) {
-                    print("Change Directory : Target path is not a directory\n");
+                    printf("Change Directory : Target path is not a directory\n");
                 }
                 else {
                     strcpy(isa_ctx->path, buf);
@@ -936,7 +936,7 @@ int handle_guest_syscalls() {
                 strcpy(path, isa_ctx->path);
                 strcat(path, "/");
                 strcat(path, buf);
-                FCB * dir = search_file_or_directory(path);
+                FCB * dir = search_file_or_directory(path, isa_ctx->uid);
                 if (dir==NULL) {
                     printf("Change Directory : Invalid Path\n");
                 }
@@ -971,7 +971,7 @@ int handle_guest_syscalls() {
             strcat(name, buf);
             strcpy(buf, name);
         }
-        FCB * file = search_file_or_directory(buf);
+        FCB * file = search_file_or_directory(buf, isa_ctx->uid);
         if (file==NULL) {
             printf("Change Permissions : File not found\n");
         }
@@ -979,7 +979,7 @@ int handle_guest_syscalls() {
             printf("Change Permissions : Not the owner\n");
         }
         else {
-            file->permission = isa_ctx->ecx;
+            file->permission = isa_regs->ecx;
             update_time_stamps(file, 2);
             switch(file->permission) {
                 case 0:
@@ -994,6 +994,7 @@ int handle_guest_syscalls() {
                 default:
                     printf("Shouldn't reach here\n");
             }
+            update_directory_trace(file, isa_ctx->uid);
         }
         break;
     }

@@ -775,6 +775,7 @@ uint32_t allocate_block(FCB * file_fcb, int block_number);
 void update_time_stamps(struct FCB * file, int mask);
 struct FCB * search_in_directory(struct FCB * directory, char * name, int uid);
 struct FCB * search_file_or_directory(char * path, int uid);
+struct FCB * search_file(char * path);
 struct FCB * get_parent_directory(char * path, int uid);
 struct FCB * create_root_FCB();
 FCB * create_file(char * path, int type, int uid);
@@ -783,14 +784,15 @@ void remove_directory(char * path, int uid);
 void truncate_file(FCB * file_fcb);
 
 int open_call(char * path, int mode, int pid, int uid);
-int close_call(int num, int pid);
+int close_call(int num, int pid, int uid);
 int read_call(int num, char * buf, int size, int pid);
 int write_call(int num, char * buf, int size, int pid);
 int seek_call(int num, int size, int pid);
 int tell_call(int num, int pid);
 int create_directory(char * path, int uid);
 int remove_call(char * path, int uid);
-void update_directory_trace(FCB * file);
+void update_directory_trace(FCB * file, int uid);
+int file_exists;
 
 
 //disk_cache functions
