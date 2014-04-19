@@ -972,7 +972,7 @@ void * read_block_from_cache(uint32_t physical_address) {
 	}
 
 	if(cur != NULL){
-		//printf("Cache Hit for read at %d\n", physical_address);
+		printf("Cache Hit for read at %d\n", physical_address);
 		if(cur->prev != NULL && cur->next != NULL){
 			cur->prev->next = cur->next ;
 			cur->next->prev = cur->prev ;
@@ -1056,7 +1056,7 @@ void write_block_to_cache(uint32_t physical_address ,char * data ){
 	}
 
 	if(cur != NULL){
-		//printf("Cache Hit for write at %d\n", physical_address);
+		printf("Cache Hit for write at %d\n", physical_address);
 		memcpy(cur->block_data, data, super_block.block_size);
 		cur->dirty_bit = 1 ;
 		if(cur->prev != NULL & cur->next != NULL){
@@ -1083,7 +1083,7 @@ void write_block_to_cache(uint32_t physical_address ,char * data ){
 		cache_entry * new_entry = disk_cache.head ;
 		new_entry->physical_address = physical_address ;
 
-		memcpy(cur->block_data, data, super_block.block_size);
+		memcpy(new_entry->block_data, data, super_block.block_size);
 		disk_cache.head = new_entry->next ;
 		new_entry->prev = disk_cache.tail ;
 		disk_cache.tail->next = new_entry ;
